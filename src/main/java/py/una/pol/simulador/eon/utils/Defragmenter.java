@@ -682,52 +682,59 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         }
         return -1;
     }
-
-
-    /* ===========================================================
-   Intentar asignar la demanda en FS/cores fijos (con XT)
-=========================================================== */
+    
     private static EstablishedRoute intentarAsignarConCoresFijos(
-            Demand demanda,
-            List<Link> pathLinks,
-            List<Integer> pathCores,
-            int start,
-            Graph<Integer, Link> graph,
-            BigDecimal maxCrosstalk, double crosstalkPerUnitLength,
-            int cores) {
+        Demand demanda,
+        List<Link> pathLinks,
+        List<Integer> pathCores,
+        int start,
+        Graph<Integer, Link> graph,
+        BigDecimal maxCrosstalk,
+        double crosstalkPerUnitLength,
+        int cores) {
 
-        int width = demanda.getFs();
-        if (pathLinks == null || pathLinks.isEmpty()) {
-            return null;
-        }
-
-        int slotsSize = pathLinks.get(0).getCores().get(0).getFrequencySlots().size();
-        if (width <= 0 || start < 0 || start + width > slotsSize) {
-            return null;
-        }
-
-        List<BigDecimal> crosstalkFSList = new ArrayList<>(Collections.nCopies(width, BigDecimal.ZERO));
-        for (int li = 0; li < pathLinks.size(); li++) {
-            Link link = pathLinks.get(li);
-            int core = pathCores.get(li);
-
-            // chequeo de disponibilidad + crosstalk
-            if (!isBlockAvailable(link, core, start, width, maxCrosstalk, crosstalkFSList, crosstalkPerUnitLength)) {
-                return null;
-            }
-            // acumular crosstalk “virtual” en la evaluación
-            updateCrosstalkFSList(crosstalkFSList, core, link, crosstalkPerUnitLength, width);
-        }
-
-        // Si todos los enlaces pasan, crear y asignar
-        EstablishedRoute nueva = new EstablishedRoute(
-                pathLinks, start, width, demanda.getLifetime(),
-                demanda.getSource(), demanda.getDestination(), new ArrayList<>(pathCores));
-        Utils.assignFs(graph, nueva, crosstalkPerUnitLength);
-        return nueva;
+    int width = demanda.getFs();
+    if (pathLinks == null || pathLinks.isEmpty()) {
+        return null;
     }
 
+    int slotsSize = pathLinks.get(0).getCores().get(0).getFrequencySlots().size();
+    if (width <= 0 || start < 0 || start + width > slotsSize) {
+        return null;
+    }
 
+    List<BigDecimal> crosstalkFSList =
+            new ArrayList<>(Collections.nCopies(width, BigDecimal.ZERO));
+
+    for (int li = 0; li < pathLinks.size(); li++) {
+        Link link = pathLinks.get(li);
+        int core = pathCores.get(li);
+
+        if (!isBlockAvailable(
+                link, core, start, width, maxCrosstalk,
+                crosstalkFSList, crosstalkPerUnitLength)) {
+            return null;
+        }
+
+        updateCrosstalkFSList(
+                crosstalkFSList, core, link, start, crosstalkPerUnitLength, width);
+    }
+
+    EstablishedRoute nueva = new EstablishedRoute(
+            pathLinks,
+            start,
+            width,
+            demanda.getLifetime(),
+            demanda.getSource(),
+            demanda.getDestination(),
+            new ArrayList<>(pathCores)
+    );
+
+    Utils.assignFs(graph, nueva, crosstalkPerUnitLength);
+    return nueva;
+}
+    
+    
     /* ===========================================================
    Convertir EstablishedRoute -> Demand (para ruteoCoreMultiple)
 =========================================================== */
@@ -825,29 +832,69 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         }
         return backups;
     }
+    
+    private static boolean isBlockAvailable(
+        Link link,
+        int core,
+        int start,
+        int width,
+        BigDecimal maxCrosstalk,
+        List<BigDecimal> crosstalkFSList,
+        double crosstalkPerUnitLength) {
 
-    private static boolean isBlockAvailable(Link link, int core, int start,
-            int width, BigDecimal maxCrosstalk, List<BigDecimal> crosstalkFSList,
-            double crosstalkPerUnitLength) {
+    List<FrequencySlot> fsSlots = link.getCores()
+            .get(core)
+            .getFrequencySlots()
+            .subList(start, start + width);
 
-        List<FrequencySlot> fsSlots = link.getCores().get(core)
-                .getFrequencySlots().subList(start, start + width);
-
-        return Algorithms.isFSBlockFree(fsSlots)
-                && Algorithms.isFsBlockCrosstalkFree(fsSlots, maxCrosstalk, crosstalkFSList)
-                && Algorithms.isNextToCrosstalkFreeCores(link, maxCrosstalk, core, start, width, crosstalkPerUnitLength);
+    if (!Algorithms.isFSBlockFree(fsSlots)) {
+        return false;
     }
 
-    private static void updateCrosstalkFSList(List<BigDecimal> crosstalkFSList,
-            int core, Link link, double crosstalkPerUnitLength, int width) {
+    if (!Algorithms.isFsBlockCrosstalkFree(fsSlots, maxCrosstalk, crosstalkFSList)) {
+        return false;
+    }
 
-        for (int i = 0; i < width; i++) {
-            BigDecimal current = crosstalkFSList.get(i);
-            crosstalkFSList.set(i, current.add(Utils.toDB(Utils.XT(
-                    Utils.getCantidadVecinos(core), crosstalkPerUnitLength, link.getDistance()))));
+    if (!Algorithms.isNextToCrosstalkFreeCores(
+            link, maxCrosstalk, core, start, width, crosstalkPerUnitLength)) {
+        return false;
+    }
+
+    int activeNeighbors = Algorithms.CalculaVecinosConCrosstalk(link, core, start, width);
+    BigDecimal xtToAdd = Utils.toDB(
+            Utils.XT(activeNeighbors, crosstalkPerUnitLength, link.getDistance())
+    );
+
+    for (int i = 0; i < width; i++) {
+        BigDecimal newValue = crosstalkFSList.get(i).add(xtToAdd);
+
+        if (activeNeighbors > 0 && newValue.compareTo(maxCrosstalk) > 0) {
+            return false;
         }
     }
 
+    return true;
+}
+
+private static void updateCrosstalkFSList(
+        List<BigDecimal> crosstalkFSList,
+        int core,
+        Link link,
+        int start,
+        double crosstalkPerUnitLength,
+        int width) {
+    int activeNeighbors = Algorithms.CalculaVecinosConCrosstalk(link, core, start, width);
+    BigDecimal xtToAdd = Utils.toDB(
+            Utils.XT(activeNeighbors, crosstalkPerUnitLength, link.getDistance())
+    );
+
+    for (int i = 0; i < width; i++) {
+        crosstalkFSList.set(i, crosstalkFSList.get(i).add(xtToAdd));
+    }
+}
+    
+    
+    
     private static List<Link> getBlockedDemandPath(Demand demandaBloqueada, Graph<Integer, Link> graph) {
         KShortestSimplePaths<Integer, Link> kspFinder = new KShortestSimplePaths<>(graph);
         List<GraphPath<Integer, Link>> kPaths = kspFinder.getPaths(demandaBloqueada.getSource(), demandaBloqueada.getDestination(), 5);
