@@ -748,11 +748,24 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         return d;
     }
 
-    private static class DefragMetrics {
+    public static class DefragMetrics {
 
         public int conteoExitos;
         public int conteoFallido;
         public int routesMoved; //acumula rutas reconfiguradas en éxitos
+        
+        public double getPromedioRutasPorExito() {
+            return conteoExitos > 0 ? (double) routesMoved / conteoExitos : 0.0;
+        }
+        
+        public int getTotalIntentos() {
+            return conteoExitos + conteoFallido;
+        }
+        
+        public double getTasaExito() {
+            int total = getTotalIntentos();
+            return total > 0 ? (double) conteoExitos * 100.0 / total : 0.0;
+        }
     }
 
     private static final DefragMetrics metricsBFRmax1 = new DefragMetrics();
@@ -763,6 +776,41 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
     private static final DefragMetrics metricsFullRuteoMin1 = new DefragMetrics();
     private static final DefragMetrics metricsFullRuteoMin3 = new DefragMetrics();
+    
+    // Métodos públicos para acceder a las métricas
+    public static DefragMetrics getMetricsBFRmax1() { return metricsBFRmax1; }
+    public static DefragMetrics getMetricsBFRmax3() { return metricsBFRmax3; }
+    public static DefragMetrics getMetricsBFRmin1() { return metricsBFRmin1; }
+    public static DefragMetrics getMetricsBFRmin3() { return metricsBFRmin3; }
+    public static DefragMetrics getMetricsFullRuteoMin1() { return metricsFullRuteoMin1; }
+    public static DefragMetrics getMetricsFullRuteoMin3() { return metricsFullRuteoMin3; }
+    
+    // Resetear métricas entre simulaciones
+    public static void resetAllMetrics() {
+        metricsBFRmax1.conteoExitos = 0;
+        metricsBFRmax1.conteoFallido = 0;
+        metricsBFRmax1.routesMoved = 0;
+        
+        metricsBFRmax3.conteoExitos = 0;
+        metricsBFRmax3.conteoFallido = 0;
+        metricsBFRmax3.routesMoved = 0;
+        
+        metricsBFRmin1.conteoExitos = 0;
+        metricsBFRmin1.conteoFallido = 0;
+        metricsBFRmin1.routesMoved = 0;
+        
+        metricsBFRmin3.conteoExitos = 0;
+        metricsBFRmin3.conteoFallido = 0;
+        metricsBFRmin3.routesMoved = 0;
+        
+        metricsFullRuteoMin1.conteoExitos = 0;
+        metricsFullRuteoMin1.conteoFallido = 0;
+        metricsFullRuteoMin1.routesMoved = 0;
+        
+        metricsFullRuteoMin3.conteoExitos = 0;
+        metricsFullRuteoMin3.conteoFallido = 0;
+        metricsFullRuteoMin3.routesMoved = 0;
+    }
 
     private static void printMetricsBFRmax1() {
         System.out.println("\n=== Métricas del Desfragmentador ===");

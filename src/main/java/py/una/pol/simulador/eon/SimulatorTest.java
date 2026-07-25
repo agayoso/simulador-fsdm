@@ -41,9 +41,9 @@ public class SimulatorTest {
 
         input.setDemands(10000);
         input.setTopologies(new ArrayList<>());
-        //input.getTopologies().add(TopologiesEnum.NSFNET);
-        input.getTopologies().add(TopologiesEnum.USNET);
-       // input.getTopologies().add(TopologiesEnum.JPNNET);
+        //input.getTopologies().add(TopologiesEnum.NSFNET);  // 14 nodos - Completado
+        //input.getTopologies().add(TopologiesEnum.USNET);    // 24 nodos - Completado
+        input.getTopologies().add(TopologiesEnum.JPNNET);   // 17 nodos - ACTUAL (Experimento 2.2)
         input.setFsWidth(new BigDecimal("12.5"));
         input.setFsRangeMax(8);
         input.setFsRangeMin(2);
@@ -58,11 +58,17 @@ public class SimulatorTest {
         input.setMaxCrosstalk(new BigDecimal("0.003162277660168379331998893544")); // XT = -25 dB
         //input.setMaxCrosstalk(new BigDecimal("0.031622776601683793319988935444")); // XT = -15 dB
         input.setCrosstalkPerUnitLenghtList(new ArrayList<>());
-        //input.getCrosstalkPerUnitLenghtList().add((2 * Math.pow(0.0035, 2) * 0.080) / (4000000 * 0.000045));// H = 0.0035 → acoplamiento fuerte (núcleos muy cercanos o sin aislamiento).
-        // input.getCrosstalkPerUnitLenghtList().add((2 * Math.pow(0.00040, 2) * 0.050) / (4000000 * 0.000040)); //H = 0.00040 → acoplamiento intermedio.
 
-        input.getCrosstalkPerUnitLenghtList().add((2 * Math.pow(0.0000316, 2) * 0.055) / (4000000 * 0.000045)); //H = 0.0000316 → acoplamiento débil (núcleos bien aislados).
-        
+        // === CONFIGURAR SOLO UNO A LA VEZ ===
+        // Acoplamiento FUERTE (núcleos muy cercanos) - H = 0.0035
+        //input.getCrosstalkPerUnitLenghtList().add((2 * Math.pow(0.0035, 2) * 0.080) / (4000000 * 0.000045));
+
+        // Acoplamiento MEDIO (intermedio) - H = 0.00040
+        //input.getCrosstalkPerUnitLenghtList().add((2 * Math.pow(0.00040, 2) * 0.050) / (4000000 * 0.000040));
+
+        // Acoplamiento DÉBIL (núcleos bien aislados) - H = 0.0000316 ← ACTUAL (Experimento 2)
+        input.getCrosstalkPerUnitLenghtList().add((2 * Math.pow(0.0000000316, 2) * 0.055) / (4000000 * 0.000045));
+
         // Mantener tus parámetros base pero ajustar:
         return input;
     }
@@ -77,7 +83,7 @@ public class SimulatorTest {
             createTable();
             // Datos de entrada
             for (int erlang = 2500; erlang <= 2500; erlang = erlang + 1000) {
-                
+
                 //Contadores de tiempo de ejecución de cada estrategia
                 long tiempoTotalDFbFRmax1 = 0L;
                 long tiempoTotalDFbFRmax3 = 0L;
@@ -87,32 +93,35 @@ public class SimulatorTest {
 
                 long tiempoTotalDFfullRuteoMin1 = 0L;
                 long tiempoTotalDFfullRuteoMin3 = 0L;
-                
-                
-                
+
+
+
                 int bloqueos_sd = 0;
                 int bloqueoBFRmax1 = 0;
                 int bloqueoBFRmax3=0;
-                
+
                 int bloqueoBFRmin1 = 0;
-                int bloqueoBFRmin3=0;                
-                
+                int bloqueoBFRmin3=0;
+
                 int bloqueoFullRuteoMin1=0;
                   int bloqueoFullRuteoMin3=0;
-                
-                
+
+
                 int demandaNro_sd = 1;
                 int demandaNro_cdBFR1 = 1;
                 int demandaNro_cdBFR3 = 1;
-                
+
                 int demandaNro_cdBFRmin1 = 1;
                 int demandaNro_cdBFRmin3 = 1;
-                
+
                 int demandaNro_FullRuteoMin1=1;
                   int demandaNro_FullRuteoMin3=1;
 
                 Input input = new SimulatorTest().getTestingInput(erlang);
                 for (TopologiesEnum topology : input.getTopologies()) {
+
+                    // Resetear métricas de desfragmentación
+                    Defragmenter.resetAllMetrics();
 
                     // Se genera la red de acuerdo a los datos de entrada
                     Graph<Integer, Link> graph = Utils.createTopology(topology,
@@ -234,16 +243,16 @@ public class SimulatorTest {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 1: ");
-                                        
+
                                          desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);
-                                        
+
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
                                             demand.setBlocked(true);
                                             //System.out.println("Nuevo Bloqueo, no se pudo resolver bloqueo");
                                             insertData(input.getAlgorithms().get(0).label(), topology.label(), "" + i, "" + demand.getId(), "" + erlang, input.getCrosstalkPerUnitLenghtList().get(0).toString());
                                             bloqueoBFRmax1++;
-                                        } 
+                                        }
 
                                     } else {
                                         //Ruta establecida
@@ -310,16 +319,16 @@ public class SimulatorTest {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 3: ");
-         
+
                                          desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),3);
-                                     
+
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
                                             demand.setBlocked(true);
                                             //System.out.println("Nuevo Bloqueo, no se pudo resolver bloqueo");
                                             insertData(input.getAlgorithms().get(0).label(), topology.label(), "" + i, "" + demand.getId(), "" + erlang, input.getCrosstalkPerUnitLenghtList().get(0).toString());
                                             bloqueoBFRmax3++;
-                                        } 
+                                        }
 
                                     } else {
                                         //Ruta establecida
@@ -386,16 +395,16 @@ public class SimulatorTest {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 1: ");
-                                        
-                                        desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);                                
-                                        
+
+                                        desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);
+
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
                                             demand.setBlocked(true);
                                             //System.out.println("Nuevo Bloqueo, no se pudo resolver bloqueo");
                                             insertData(input.getAlgorithms().get(0).label(), topology.label(), "" + i, "" + demand.getId(), "" + erlang, input.getCrosstalkPerUnitLenghtList().get(0).toString());
                                             bloqueoBFRmin1++;
-                                        } 
+                                        }
 
                                     } else {
                                         //Ruta establecida
@@ -423,7 +432,7 @@ public class SimulatorTest {
                             System.out.println("Cantidad de demandas: " + demandaNro_cdBFRmin1);
                             System.out.println(System.lineSeparator());
                         }
-                    }          
+                    }
                     tiempoTotalDFbFRmin1 += System.nanoTime() - inicioDFbFRmin1;
                                         /////////////////////////////////////////////////
                  /* ===========================================================
@@ -461,16 +470,16 @@ public class SimulatorTest {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 3: ");
-                                        
+
                                          desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),3);
-                                   
+
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
                                             demand.setBlocked(true);
                                             //System.out.println("Nuevo Bloqueo, no se pudo resolver bloqueo");
                                             insertData(input.getAlgorithms().get(0).label(), topology.label(), "" + i, "" + demand.getId(), "" + erlang, input.getCrosstalkPerUnitLenghtList().get(0).toString());
                                             bloqueoBFRmin3++;
-                                        } 
+                                        }
 
                                     } else {
                                         //Ruta establecida
@@ -500,7 +509,7 @@ public class SimulatorTest {
                         }
                     }
                     tiempoTotalDFbFRmin3 += System.nanoTime() - inicioDFbFRmin3;
-                    
+
                         //////////////////////////////////////////////////
                     /////////////////////////////////////////////////
                  /* ===========================================================
@@ -538,16 +547,16 @@ public class SimulatorTest {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 1: ");
-                                        
+
                                          desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);
-                                    
+
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
                                             demand.setBlocked(true);
                                             //System.out.println("Nuevo Bloqueo, no se pudo resolver bloqueo");
                                             insertData(input.getAlgorithms().get(0).label(), topology.label(), "" + i, "" + demand.getId(), "" + erlang, input.getCrosstalkPerUnitLenghtList().get(0).toString());
                                             bloqueoFullRuteoMin1++;
-                                        } 
+                                        }
 
                                     } else {
                                         //Ruta establecida
@@ -615,16 +624,16 @@ public class SimulatorTest {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 3: ");
-                                        
+
                                          desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),3);
-                                    
+
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
                                             demand.setBlocked(true);
                                             //System.out.println("Nuevo Bloqueo, no se pudo resolver bloqueo");
                                             insertData(input.getAlgorithms().get(0).label(), topology.label(), "" + i, "" + demand.getId(), "" + erlang, input.getCrosstalkPerUnitLenghtList().get(0).toString());
                                             bloqueoFullRuteoMin3++;
-                                        } 
+                                        }
 
                                     } else {
                                         //Ruta establecida
@@ -653,25 +662,35 @@ public class SimulatorTest {
                             System.out.println(System.lineSeparator());
                         }
                     }
-                      tiempoTotalDFfullRuteoMin3 += System.nanoTime() - inicioDFfullRuteoMin3;          
-                    
-                    
-                    
+                      tiempoTotalDFfullRuteoMin3 += System.nanoTime() - inicioDFfullRuteoMin3;
+
+
+
+                    System.out.println("\n========================================");
+                    System.out.println("RESUMEN DE BLOQUEOS");
+                    System.out.println("========================================");
                     System.out.println("Cantidad de demandas: " + demandaNro_sd);
                     System.out.println("TOTAL DE BLOQUEOS SIN DESFRAGMENTACION: " + bloqueos_sd);
+                    System.out.println("");
 
-                    
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MAX R-RUTEO MIN profundida 1: " + bloqueoBFRmax1);
-                  
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MAX R-RUTEO MIN profundida 3: " + bloqueoBFRmax3);
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MIN R-RUTEO MIN profundida 1: " + bloqueoBFRmin1);
-                
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MIN R-RUTEO MIN profundida 3: " + bloqueoBFRmin3);
-                    
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN desfragFullRuteoMin profundidad 1: " + bloqueoFullRuteoMin1);
-                   
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN desfragFullRuteoMin profundidad 3: " + bloqueoFullRuteoMin3); 
-                    
+                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MAX R-RUTEO MIN profundida 1: " + bloqueoBFRmax1
+                        + " (reducción: " + String.format("%.1f%%", (bloqueos_sd - bloqueoBFRmax1) * 100.0 / bloqueos_sd) + ")");
+
+                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MAX R-RUTEO MIN profundida 3: " + bloqueoBFRmax3
+                        + " (reducción: " + String.format("%.1f%%", (bloqueos_sd - bloqueoBFRmax3) * 100.0 / bloqueos_sd) + ")");
+
+                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MIN R-RUTEO MIN profundida 1: " + bloqueoBFRmin1
+                        + " (reducción: " + String.format("%.1f%%", (bloqueos_sd - bloqueoBFRmin1) * 100.0 / bloqueos_sd) + ")");
+
+                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MIN R-RUTEO MIN profundida 3: " + bloqueoBFRmin3
+                        + " (reducción: " + String.format("%.1f%%", (bloqueos_sd - bloqueoBFRmin3) * 100.0 / bloqueos_sd) + ")");
+
+                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN desfragFullRuteoMin profundidad 1: " + bloqueoFullRuteoMin1
+                        + " (reducción: " + String.format("%.1f%%", (bloqueos_sd - bloqueoFullRuteoMin1) * 100.0 / bloqueos_sd) + ")");
+
+                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN desfragFullRuteoMin profundidad 3: " + bloqueoFullRuteoMin3
+                        + " (reducción: " + String.format("%.1f%%", (bloqueos_sd - bloqueoFullRuteoMin3) * 100.0 / bloqueos_sd) + ")");
+
                     //imprime los tiempos de cada estrategia
                     System.out.println("==============================================");
                     System.out.println("TIEMPOS TOTALES DE EJECUCIÓN POR MÉTODO");
@@ -686,6 +705,20 @@ public class SimulatorTest {
                     System.out.println("DFfullRuteoMin profundidad 1: " + formatDuration(tiempoTotalDFfullRuteoMin1));
                     System.out.println("DFfullRuteoMin profundidad 3: " + formatDuration(tiempoTotalDFfullRuteoMin3));
 
+                    // Imprimir métricas de desfragmentación
+                    System.out.println("\n========================================");
+                    System.out.println("MÉTRICAS DE DESFRAGMENTACIÓN");
+                    System.out.println("========================================");
+
+                    printDefragMetrics("DFbFRmax prof 1", Defragmenter.getMetricsBFRmax1());
+                    printDefragMetrics("DFbFRmax prof 3", Defragmenter.getMetricsBFRmax3());
+                    printDefragMetrics("DFbFRmin prof 1", Defragmenter.getMetricsBFRmin1());
+                    printDefragMetrics("DFbFRmin prof 3", Defragmenter.getMetricsBFRmin3());
+                    printDefragMetrics("DFfullRuteoMin prof 1", Defragmenter.getMetricsFullRuteoMin1());
+                    printDefragMetrics("DFfullRuteoMin prof 3", Defragmenter.getMetricsFullRuteoMin3());
+
+                    System.out.println("========================================\n");
+
                 }
             }
 
@@ -694,7 +727,7 @@ public class SimulatorTest {
         }
 
     }
-    
+
     //Metodo para imprimir el tiempo total de cada estrategia.
     private static String formatDuration(long nanos) {
         long totalMillis = nanos / 1_000_000;
@@ -703,6 +736,16 @@ public class SimulatorTest {
         long milisegundos = totalMillis % 1000;
 
         return minutos + " min " + segundos + " s " + milisegundos + " ms";
+    }
+
+    //Método para imprimir métricas de desfragmentación
+    private static void printDefragMetrics(String nombre, Defragmenter.DefragMetrics m) {
+        System.out.println("\n" + nombre + ":");
+        System.out.println("  Intentos totales: " + m.getTotalIntentos());
+        System.out.println("  Éxitos: " + m.conteoExitos + " (" + String.format("%.1f%%", m.getTasaExito()) + ")");
+        System.out.println("  Fallos: " + m.conteoFallido);
+        System.out.println("  Rutas reconfiguradas (total): " + m.routesMoved);
+        System.out.println("  Promedio rutas/desfragmentación: " + String.format("%.2f", m.getPromedioRutasPorExito()));
     }
 
     /**
