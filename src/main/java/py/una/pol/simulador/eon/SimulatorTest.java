@@ -48,7 +48,13 @@ public class SimulatorTest {
         input.setFsRangeMax(8);
         input.setFsRangeMin(2);
         input.setCapacity(320);
-        input.setCores(7);
+
+        // ========== CONFIGURACIÓN AGRUPAMIENTO FSDM (ÚNICO PUNTO DE CONFIGURACIÓN) ==========
+        input.setCores(6);              // Cantidad total de fibras
+        input.setFibrasPorGrupo(2);     // Fibras por grupo
+        input.calcularGrupos();         // Calcula automáticamente los grupos: [[0,1], [2,3], [4,5]]
+        // ====================================================================================
+
         input.setLambda(5);
         input.setErlang(erlang);
         input.setAlgorithms(new ArrayList<>());
