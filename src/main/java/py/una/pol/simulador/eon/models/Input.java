@@ -14,7 +14,7 @@ import py.una.pol.simulador.eon.models.enums.TopologiesEnum;
 /**
  * Parámetros de entrada del simulador
  *
- * 
+ *
  */
 @Data
 public class Input {
@@ -72,23 +72,23 @@ public class Input {
      * simular
      */
     private List<Double> crosstalkPerUnitLenghtList;
-    
+
     /**
      * Cantidad de fibras que forman un grupo en arquitectura FSDM
      */
     private Integer fibrasPorGrupo;
-    
+
     /**
      * Estructura de grupos de fibras calculada automáticamente.
      * Cada elemento de la lista externa es un grupo.
      * Cada grupo contiene los índices de las fibras que lo componen.
      */
     private List<List<Integer>> grupos;
-    
+
     /**
      * Calcula automáticamente los grupos de fibras basándose en la cantidad
      * total de fibras (cores) y la cantidad de fibras por grupo.
-     * 
+     *
      * Ejemplo: 6 fibras, 2 fibras por grupo →
      *   Grupo 0: [0, 1]
      *   Grupo 1: [2, 3]
@@ -98,10 +98,10 @@ public class Input {
         if (cores == null || fibrasPorGrupo == null || fibrasPorGrupo == 0) {
             return;
         }
-        
+
         grupos = new ArrayList<>();
         int cantidadGrupos = cores / fibrasPorGrupo;
-        
+
         for (int g = 0; g < cantidadGrupos; g++) {
             List<Integer> grupo = new ArrayList<>();
             for (int f = 0; f < fibrasPorGrupo; f++) {

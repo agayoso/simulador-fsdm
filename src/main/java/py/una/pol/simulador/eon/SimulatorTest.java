@@ -162,7 +162,7 @@ public class SimulatorTest {
                     //                        establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -229,7 +229,7 @@ public class SimulatorTest {
                         //                    establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -241,7 +241,7 @@ public class SimulatorTest {
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 1: ");
 
-                                         desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);
+                                         desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
@@ -305,7 +305,7 @@ public class SimulatorTest {
                       //                      establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -317,7 +317,7 @@ public class SimulatorTest {
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 3: ");
 
-                                         desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),3);
+                                         desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),3);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
@@ -381,7 +381,7 @@ public class SimulatorTest {
                     //                        establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -393,7 +393,7 @@ public class SimulatorTest {
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 1: ");
 
-                                        desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);
+                                        desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
@@ -456,7 +456,7 @@ public class SimulatorTest {
                             //                establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -468,7 +468,7 @@ public class SimulatorTest {
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 3: ");
 
-                                         desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),3);
+                                         desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),3);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
@@ -533,7 +533,7 @@ public class SimulatorTest {
                           //                  establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -545,7 +545,7 @@ public class SimulatorTest {
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 1: ");
 
-                                         desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),1);
+                                         desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
@@ -610,7 +610,7 @@ public class SimulatorTest {
                                 //            establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
-                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                            establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
                                         }
                                         default -> {
                                             establishedRoute = null;
@@ -622,7 +622,7 @@ public class SimulatorTest {
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
                                         System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 3: ");
 
-                                         desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), input.getCrosstalkPerUnitLenghtList().get(0),3);
+                                         desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),3);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo

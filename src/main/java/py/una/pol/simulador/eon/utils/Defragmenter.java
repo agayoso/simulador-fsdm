@@ -29,8 +29,12 @@ public class Defragmenter {
             Demand demandaBloqueada,
             Graph<Integer, Link> graph,
             List<EstablishedRoute> establishedRoutes,
-            int capacity, int cores,
-            BigDecimal maxCrosstalk, double crosstalkPerUnitLength, int profundidad) {
+            Input input,
+            double crosstalkPerUnitLength, int profundidad) {
+
+        int capacity = input.getCapacity();
+        int cores = input.getCores();
+        BigDecimal maxCrosstalk = input.getMaxCrosstalk();
 
         // 1) Camino de la demanda bloqueada
         List<Link> pathLinks = getBlockedDemandPath(demandaBloqueada, graph);
@@ -119,7 +123,7 @@ public class Defragmenter {
                     Demand d = demandFromRoute(r);
 
                     EstablishedRoute re = Algorithms.ruteoCoreMultiple(
-                            graph, d, capacity, cores, maxCrosstalk, crosstalkPerUnitLength);
+                            graph, d, input, crosstalkPerUnitLength);
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ Falló reinserción de esta ruta: rollback completo de este intento
@@ -205,14 +209,18 @@ public class Defragmenter {
    DESFRAGMENTACIÓN GUIADA POR BFR (top-1 y top-3 sets con menos conflictos)
    - Núcleos: los de menor BFR por enlace (fijos)
    - Ventanas: probamos todas y ordenamos por #conflictos
-  
+
 =========================================================== */
     public static boolean DFbFRmin(
             Demand demandaBloqueada,
             Graph<Integer, Link> graph,
             List<EstablishedRoute> establishedRoutes,
-            int capacity, int cores,
-            BigDecimal maxCrosstalk, double crosstalkPerUnitLength, int profundidad) {
+            Input input,
+            double crosstalkPerUnitLength, int profundidad) {
+
+        int capacity = input.getCapacity();
+        int cores = input.getCores();
+        BigDecimal maxCrosstalk = input.getMaxCrosstalk();
 
         // 1) Camino de la demanda bloqueada
         List<Link> pathLinks = getBlockedDemandPath(demandaBloqueada, graph);
@@ -301,7 +309,7 @@ public class Defragmenter {
                     Demand d = demandFromRoute(r);
 
                     EstablishedRoute re = Algorithms.ruteoCoreMultiple(
-                            graph, d, capacity, cores, maxCrosstalk, crosstalkPerUnitLength);
+                            graph, d, input, crosstalkPerUnitLength);
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ Falló reinserción de esta ruta: rollback completo de este intento
@@ -391,8 +399,12 @@ public class Defragmenter {
             Demand demandaBloqueada,
             Graph<Integer, Link> graph,
             List<EstablishedRoute> establishedRoutes,
-            int capacity, int cores,
-            BigDecimal maxCrosstalk, double crosstalkPerUnitLenght, int profundidad) {
+            Input input,
+            double crosstalkPerUnitLenght, int profundidad) {
+
+        int capacity = input.getCapacity();
+        int cores = input.getCores();
+        BigDecimal maxCrosstalk = input.getMaxCrosstalk();
 
         // 1) Camino de la demanda
         List<Link> pathLinks = getBlockedDemandPath(demandaBloqueada, graph);
@@ -451,7 +463,7 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             Map<EstablishedRoute, EstablishedRoute> moved = new LinkedHashMap<>();
 
             try {
-                // 4.1) Desasignar conflictivas 
+                // 4.1) Desasignar conflictivas
                 for (EstablishedRoute r : bestConflictSet) {
                     Utils.deallocateFs(graph, r, crosstalkPerUnitLenght);
                     desasignadas.add(r);
@@ -463,7 +475,7 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                         graph, maxCrosstalk, crosstalkPerUnitLenght, cores);
 
                 if (nueva == null) {
-                    // rollback simple de slots 
+                    // rollback simple de slots
                     for (EstablishedRoute r : desasignadas) {
                         restoreSingleRoute(graph, backups.get(r));
                     }
@@ -483,7 +495,7 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                     Demand d = demandFromRoute(r);
 
                     EstablishedRoute re = Algorithms.ruteoCoreMultiple(
-                            graph, d, capacity, cores, maxCrosstalk, crosstalkPerUnitLenght);
+                            graph, d, input, crosstalkPerUnitLenght);
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ rollback total de este intento
@@ -646,9 +658,9 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                     continue;
                 }
 
-                // Traemos el core de la ruta que coincide con el link de la demanda bloqueada 
+                // Traemos el core de la ruta que coincide con el link de la demanda bloqueada
                 Integer coreRuta = r.getPathCores().get(idx);
-                //vemos si tiene el mismo core en ese enlace, compara core de la posicion del enlace de ruta 
+                //vemos si tiene el mismo core en ese enlace, compara core de la posicion del enlace de ruta
                 //que pasa por el link de la demanda bloqueada con el core con mayor bfr de ese link
                 if (coreRuta == null || coreRuta != core) {
                     continue;

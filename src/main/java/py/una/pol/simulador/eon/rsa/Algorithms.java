@@ -15,6 +15,7 @@ import org.jgrapht.alg.shortestpath.KShortestSimplePaths;
 import py.una.pol.simulador.eon.models.Demand;
 import py.una.pol.simulador.eon.models.EstablishedRoute;
 import py.una.pol.simulador.eon.models.FrequencySlot;
+import py.una.pol.simulador.eon.models.Input;
 import py.una.pol.simulador.eon.models.Link;
 import py.una.pol.simulador.eon.utils.Utils;
 
@@ -116,14 +117,18 @@ public class Algorithms {
      *
      * @param graph Grafo de la topología de la red
      * @param demand Demanda a insertar
-     * @param capacity Capacidad de la red
-     * @param cores Cantidad total de núcleos
-     * @param maxCrosstalk Máximo nivel de crosstalk permitido
+     * @param input Configuración del simulador (contiene capacity, cores, maxCrosstalk, fibrasPorGrupo)
      * @param crosstalkPerUnitLength Crosstalk por unidad de longitud (h) de la
      * fibra
      * @return Ruta establecida, o null si hay bloqueo
      */
-    public static EstablishedRoute ruteoCoreMultiple(Graph<Integer, Link> graph, Demand demand, Integer capacity, Integer cores, BigDecimal maxCrosstalk, Double crosstalkPerUnitLength) {
+    public static EstablishedRoute ruteoCoreMultiple(Graph<Integer, Link> graph, Demand demand, Input input, Double crosstalkPerUnitLength) {
+        // CAMBIO 3: Calcular FS necesarios por fibra según agrupamiento FSDM
+        int fsNecesariosPorFibra = (int) Math.ceil((double) demand.getFs() / input.getFibrasPorGrupo());
+        
+        Integer capacity = input.getCapacity();
+        Integer cores = input.getCores();
+        BigDecimal maxCrosstalk = input.getMaxCrosstalk();
         int k = 0;
 
         List<GraphPath<Integer, Link>> kspPlaced = new ArrayList<>();
@@ -143,18 +148,18 @@ public class Algorithms {
                 List<Link> enlacesLibres = new ArrayList<>();
                 List<Integer> kspCores = new ArrayList<>();
                 List<BigDecimal> crosstalkFSList = new ArrayList<>();
-                for (int fsCrosstalkIndex = 0; fsCrosstalkIndex < demand.getFs(); fsCrosstalkIndex++) {
+                for (int fsCrosstalkIndex = 0; fsCrosstalkIndex < fsNecesariosPorFibra; fsCrosstalkIndex++) {
                     crosstalkFSList.add(BigDecimal.ZERO);
                 }
                 for (Link link : ksp.getEdgeList()) {
                     for (int core = 0; core < cores; core++) {
-                        if (i < capacity - demand.getFs()) {
-                            List<FrequencySlot> bloqueFS = link.getCores().get(core).getFrequencySlots().subList(i, i + demand.getFs());
+                        if (i < capacity - fsNecesariosPorFibra) {
+                            List<FrequencySlot> bloqueFS = link.getCores().get(core).getFrequencySlots().subList(i, i + fsNecesariosPorFibra);
                             // Controla si está ocupado por una demanda
                             if (isFSBlockFree(bloqueFS)) {
                                 // Control de crosstalk
                                 if (isFsBlockCrosstalkFree(bloqueFS, maxCrosstalk, crosstalkFSList)) {
-                                    if (isNextToCrosstalkFreeCores(link, maxCrosstalk, core, i, demand.getFs(), crosstalkPerUnitLength)) {
+                                    if (isNextToCrosstalkFreeCores(link, maxCrosstalk, core, i, fsNecesariosPorFibra, crosstalkPerUnitLength)) {
                                         enlacesLibres.add(link);
                                         kspCores.add(core);
                                         fsIndexBegin = i;
