@@ -99,6 +99,15 @@ public class Input {
             return;
         }
 
+        // Validación: La cantidad de fibras debe ser divisible exactamente por el tamaño del grupo
+        if (cores % fibrasPorGrupo != 0) {
+            throw new IllegalArgumentException(
+                "Configuración inválida: La cantidad de fibras (" + cores + 
+                ") debe ser divisible por el tamaño del grupo (" + fibrasPorGrupo + "). " +
+                "Configuraciones válidas: 6 fibras con 2/3/6 por grupo, 8 fibras con 2/4/8 por grupo, etc."
+            );
+        }
+
         grupos = new ArrayList<>();
         int cantidadGrupos = cores / fibrasPorGrupo;
 

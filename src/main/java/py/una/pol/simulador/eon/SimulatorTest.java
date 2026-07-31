@@ -50,8 +50,8 @@ public class SimulatorTest {
         input.setCapacity(320);
 
         // ========== CONFIGURACIÓN AGRUPAMIENTO FSDM (ÚNICO PUNTO DE CONFIGURACIÓN) ==========
-        input.setCores(6);              // Cantidad total de fibras
-        input.setFibrasPorGrupo(2);     // Fibras por grupo
+        input.setCores(8);              // Cantidad total de fibras
+        input.setFibrasPorGrupo(4);     // Fibras por grupo
         input.calcularGrupos();         // Calcula automáticamente los grupos: [[0,1], [2,3], [4,5]]
         // ====================================================================================
 
@@ -119,6 +119,9 @@ public class SimulatorTest {
 
                 Input input = new SimulatorTest().getTestingInput(erlang);
                 for (TopologiesEnum topology : input.getTopologies()) {
+
+                    // Resetear métricas de desfragmentación al inicio de cada experimento
+                    Defragmenter.resetAllMetrics();
 
                     // Se genera la red de acuerdo a los datos de entrada
                     Graph<Integer, Link> graph = Utils.createTopology(topology,
@@ -661,36 +664,20 @@ public class SimulatorTest {
                     }
                       tiempoTotalDFfullRuteoMin3 += System.nanoTime() - inicioDFfullRuteoMin3;
 
-
-
-                    System.out.println("Cantidad de demandas: " + demandaNro_sd);
-                    System.out.println("TOTAL DE BLOQUEOS SIN DESFRAGMENTACION: " + bloqueos_sd);
-
-
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MAX R-RUTEO MIN profundida 1: " + bloqueoBFRmax1);
-
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MAX R-RUTEO MIN profundida 3: " + bloqueoBFRmax3);
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MIN R-RUTEO MIN profundida 1: " + bloqueoBFRmin1);
-
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN BFR MIN R-RUTEO MIN profundida 3: " + bloqueoBFRmin3);
-
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN desfragFullRuteoMin profundidad 1: " + bloqueoFullRuteoMin1);
-
-                    System.out.println("TOTAL DE BLOQUEOS CON DESFRAGMENTACIÓN desfragFullRuteoMin profundidad 3: " + bloqueoFullRuteoMin3);
-
-                    //imprime los tiempos de cada estrategia
-                    System.out.println("==============================================");
-                    System.out.println("TIEMPOS TOTALES DE EJECUCIÓN POR MÉTODO");
-                    System.out.println("==============================================");
-
-                    System.out.println("DFbFRmax profundidad 1: " + formatDuration(tiempoTotalDFbFRmax1));
-                    System.out.println("DFbFRmax profundidad 3: " + formatDuration(tiempoTotalDFbFRmax3));
-
-                    System.out.println("DFbFRmin profundidad 1: " + formatDuration(tiempoTotalDFbFRmin1));
-                    System.out.println("DFbFRmin profundidad 3: " + formatDuration(tiempoTotalDFbFRmin3));
-
-                    System.out.println("DFfullRuteoMin profundidad 1: " + formatDuration(tiempoTotalDFfullRuteoMin1));
-                    System.out.println("DFfullRuteoMin profundidad 3: " + formatDuration(tiempoTotalDFfullRuteoMin3));
+                    // Imprimir resumen formateado del experimento
+                    imprimirResumenExperimento(
+                        topology,
+                        input,
+                        erlang,
+                        demandaNro_sd - 1, // Restamos 1 porque empieza en 1
+                        bloqueos_sd,
+                        bloqueoBFRmax1, bloqueoBFRmax3,
+                        bloqueoBFRmin1, bloqueoBFRmin3,
+                        bloqueoFullRuteoMin1, bloqueoFullRuteoMin3,
+                        tiempoTotalDFbFRmax1, tiempoTotalDFbFRmax3,
+                        tiempoTotalDFbFRmin1, tiempoTotalDFbFRmin3,
+                        tiempoTotalDFfullRuteoMin1, tiempoTotalDFfullRuteoMin3
+                    );
 
                 }
             }
@@ -699,6 +686,127 @@ public class SimulatorTest {
             System.out.println(ex.getMessage());
         }
 
+    }
+
+    /**
+     * Imprime un resumen formateado del experimento de simulación FSDM
+     */
+    private static void imprimirResumenExperimento(
+            TopologiesEnum topology,
+            Input input,
+            int erlang,
+            int totalDemandas,
+            int bloqueosSinDF,
+            int bloqueoBFRmax1, int bloqueoBFRmax3,
+            int bloqueoBFRmin1, int bloqueoBFRmin3,
+            int bloqueoFullRuteoMin1, int bloqueoFullRuteoMin3,
+            long tiempoBFRmax1, long tiempoBFRmax3,
+            long tiempoBFRmin1, long tiempoBFRmin3,
+            long tiempoFullRuteoMin1, long tiempoFullRuteoMin3
+    ) {
+        System.out.println("\n\n");
+        System.out.println("============================================================");
+        System.out.println("              FSDM REACTIVE DEFRAGMENTATION");
+        System.out.println("============================================================");
+
+        // Identificador del experimento
+        String experimentId = String.format("%s_F%d_G%d_E%d",
+            topology.label(),
+            input.getCores(),
+            input.getFibrasPorGrupo(),
+            erlang);
+        System.out.println("\nExperiment ID: " + experimentId);
+
+        // CONFIGURACIÓN
+        System.out.println("\nCONFIGURACIÓN");
+        System.out.println("------------------------------------------------------------");
+        System.out.printf("%-22s : %s%n", "Topología", topology.label());
+        System.out.printf("%-22s : %d%n", "Fibras", input.getCores());
+        System.out.printf("%-22s : %d%n", "Fibras por grupo", input.getFibrasPorGrupo());
+        System.out.printf("%-22s : %d%n", "Cantidad de grupos", input.getGrupos().size());
+        System.out.printf("%-22s : %d Erlangs%n", "Carga", erlang);
+        System.out.printf("%-22s : %d%n", "Demandas procesadas", totalDemandas);
+
+        // RESULTADOS
+        System.out.println("\nRESULTADOS");
+        System.out.println("------------------------------------------------------------");
+        System.out.println("Sin desfragmentación");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueosSinDF, (bloqueosSinDF * 100.0 / totalDemandas));
+        System.out.println();
+
+        System.out.println("DFbFRmax P1");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueoBFRmax1, (bloqueoBFRmax1 * 100.0 / totalDemandas));
+        System.out.println();
+
+        System.out.println("DFbFRmax P3");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueoBFRmax3, (bloqueoBFRmax3 * 100.0 / totalDemandas));
+        System.out.println();
+
+        System.out.println("DFbFRmin P1");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueoBFRmin1, (bloqueoBFRmin1 * 100.0 / totalDemandas));
+        System.out.println();
+
+        System.out.println("DFbFRmin P3");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueoBFRmin3, (bloqueoBFRmin3 * 100.0 / totalDemandas));
+        System.out.println();
+
+        System.out.println("DFfullRuteoMin P1");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueoFullRuteoMin1, (bloqueoFullRuteoMin1 * 100.0 / totalDemandas));
+        System.out.println();
+
+        System.out.println("DFfullRuteoMin P3");
+        System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
+            bloqueoFullRuteoMin3, (bloqueoFullRuteoMin3 * 100.0 / totalDemandas));
+
+        // DESEMPEÑO DE LAS HEURÍSTICAS
+        System.out.println("\nDESEMPEÑO DE LAS HEURÍSTICAS");
+        System.out.println("------------------------------------------------------------");
+
+        // Obtener métricas reales desde Defragmenter
+        imprimirMetricasHeuristica("DFbFRmax P1", Defragmenter.metricsBFRmax1);
+        imprimirMetricasHeuristica("DFbFRmax P3", Defragmenter.metricsBFRmax3);
+        imprimirMetricasHeuristica("DFbFRmin P1", Defragmenter.metricsBFRmin1);
+        imprimirMetricasHeuristica("DFbFRmin P3", Defragmenter.metricsBFRmin3);
+        imprimirMetricasHeuristica("DFfullRuteoMin P1", Defragmenter.metricsFullRuteoMin1);
+        imprimirMetricasHeuristica("DFfullRuteoMin P3", Defragmenter.metricsFullRuteoMin3);
+        // TIEMPOS
+        System.out.println("\nTIEMPOS");
+        System.out.println("------------------------------------------------------------");
+        System.out.printf("%-22s : %s%n", "DFbFRmax P1", formatDuration(tiempoBFRmax1));
+        System.out.printf("%-22s : %s%n", "DFbFRmax P3", formatDuration(tiempoBFRmax3));
+        System.out.printf("%-22s : %s%n", "DFbFRmin P1", formatDuration(tiempoBFRmin1));
+        System.out.printf("%-22s : %s%n", "DFbFRmin P3", formatDuration(tiempoBFRmin3));
+        System.out.printf("%-22s : %s%n", "DFfullRuteoMin P1", formatDuration(tiempoFullRuteoMin1));
+        System.out.printf("%-22s : %s%n", "DFfullRuteoMin P3", formatDuration(tiempoFullRuteoMin3));
+
+        System.out.println("\n============================================================\n\n");
+    }
+
+    /**
+     * Imprime las métricas de una heurística de desfragmentación
+     */
+    private static void imprimirMetricasHeuristica(String nombre, Defragmenter.DefragMetrics metrics) {
+        int totalIntentos = metrics.conteoExitos + metrics.conteoFallido;
+        double successRate = totalIntentos > 0
+            ? (metrics.conteoExitos * 100.0 / totalIntentos)
+            : 0.0;
+        double promedioRutasPorExito = metrics.conteoExitos > 0
+            ? ((double) metrics.routesMoved / metrics.conteoExitos)
+            : 0.0;
+
+        System.out.println(nombre);
+        System.out.printf("  Éxitos             : %d%n", metrics.conteoExitos);
+        System.out.printf("  Fallos             : %d%n", metrics.conteoFallido);
+        System.out.printf("  Success Rate       : %.2f%%%n", successRate);
+        System.out.printf("  Rutas reconfig.    : %d%n", metrics.routesMoved);
+        System.out.printf("  Promedio/éxito     : %.2f%n", promedioRutasPorExito);
+        System.out.println();
     }
 
     //Metodo para imprimir el tiempo total de cada estrategia.

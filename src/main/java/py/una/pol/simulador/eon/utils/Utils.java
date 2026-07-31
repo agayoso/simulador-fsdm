@@ -28,6 +28,13 @@ import py.una.pol.simulador.eon.models.enums.TopologiesEnum;
 public class Utils {
 
     /**
+     * Umbral para detectar modo FSDM (Fiber Switched Division Multiplexing).
+     * En FSDM las fibras son físicamente independientes y no existe crosstalk entre ellas.
+     * Si crosstalkPerUnitLength < FSDM_CROSSTALK_THRESHOLD, se omite la actualización de crosstalk.
+     */
+    private static final double FSDM_CROSSTALK_THRESHOLD = 1e-10;
+
+    /**
      * Creates the graph that represents the optical network
      *
      * @param topology Topology selected for the network
@@ -163,17 +170,22 @@ public class Utils {
                 establishedRoute.getPath().get(j).getCores().get(establishedRoute.getPathCores().get(j)).getFrequencySlots().get(i).setFree(false);
                 Integer core = establishedRoute.getPathCores().get(j);
                 establishedRoute.getPath().get(j).getCores().get(core).getFrequencySlots().get(i).setLifetime(establishedRoute.getLifetime());
-                List<Integer> coreVecinos = getCoreVecinos(core);
-                // TODO: Asignar crosstalk
-                for (Integer coreIndex = 0; coreIndex < establishedRoute.getPath().get(j).getCores().size(); coreIndex++) {
-                    if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
-                        double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, establishedRoute.getPath().get(j).getDistance());
-                        BigDecimal crosstalkDB = toDB(crosstalk);
-                        establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().add(crosstalkDB));
+                
+                // FSDM: Omitir actualización de crosstalk si las fibras son físicamente independientes
+                if (crosstalkPerUnitLength >= FSDM_CROSSTALK_THRESHOLD) {
+                    // SDM: Actualizar crosstalk en cores vecinos
+                    List<Integer> coreVecinos = getCoreVecinos(core);
+                    // TODO: Asignar crosstalk
+                    for (Integer coreIndex = 0; coreIndex < establishedRoute.getPath().get(j).getCores().size(); coreIndex++) {
+                        if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
+                            double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, establishedRoute.getPath().get(j).getDistance());
+                            BigDecimal crosstalkDB = toDB(crosstalk);
+                            establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().add(crosstalkDB));
 
-                        BigDecimal existingCrosstalk = graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
-                        graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.add(crosstalkDB));
-                        //System.out.println("CT despues de suma" + graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk());
+                            BigDecimal existingCrosstalk = graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
+                            graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.add(crosstalkDB));
+                            //System.out.println("CT despues de suma" + graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk());
+                        }
                     }
                 }
             }
@@ -196,17 +208,22 @@ public class Utils {
                 Integer core = establishedRoute.getPathCores().get(j);
                 establishedRoute.getPath().get(j).getCores().get(core).getFrequencySlots().get(i).setFree(true);
                 establishedRoute.getPath().get(j).getCores().get(core).getFrequencySlots().get(i).setLifetime(0);
-                List<Integer> coreVecinos = getCoreVecinos(core);
-                // TODO: Desasignar crosttalk
-                for (Integer coreIndex = 0; coreIndex < establishedRoute.getPath().get(j).getCores().size(); coreIndex++) {
-                    if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
-                        double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, establishedRoute.getPath().get(j).getDistance());
-                        BigDecimal crosstalkDB = toDB(crosstalk);
-                        establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().subtract(crosstalkDB));
+                
+                // FSDM: Omitir actualización de crosstalk si las fibras son físicamente independientes
+                if (crosstalkPerUnitLength >= FSDM_CROSSTALK_THRESHOLD) {
+                    // SDM: Actualizar crosstalk en cores vecinos
+                    List<Integer> coreVecinos = getCoreVecinos(core);
+                    // TODO: Desasignar crosttalk
+                    for (Integer coreIndex = 0; coreIndex < establishedRoute.getPath().get(j).getCores().size(); coreIndex++) {
+                        if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
+                            double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, establishedRoute.getPath().get(j).getDistance());
+                            BigDecimal crosstalkDB = toDB(crosstalk);
+                            establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().subtract(crosstalkDB));
 
-                        BigDecimal existingCrosstalk = graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
-                        graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.subtract(crosstalkDB));
-                        //System.out.println("CT despues de suma" + graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk());
+                            BigDecimal existingCrosstalk = graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
+                            graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.subtract(crosstalkDB));
+                            //System.out.println("CT despues de suma" + graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk());
+                        }
                     }
                 }
             }

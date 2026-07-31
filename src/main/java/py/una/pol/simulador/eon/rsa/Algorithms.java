@@ -23,6 +23,13 @@ import py.una.pol.simulador.eon.utils.Utils;
 public class Algorithms {
 
     /**
+     * Umbral para detectar modo FSDM (Fiber Switched Division Multiplexing).
+     * En FSDM las fibras son físicamente independientes y no existe crosstalk entre ellas.
+     * Si crosstalkPerUnitLength < FSDM_CROSSTALK_THRESHOLD, se desactiva toda la lógica de crosstalk.
+     */
+    private static final double FSDM_CROSSTALK_THRESHOLD = 1e-10;
+
+    /**
      * Algoritmo RSA sin conmutación de núcleos
      *
      * @param graph Grafo de la topología de la red
@@ -125,7 +132,7 @@ public class Algorithms {
     public static EstablishedRoute ruteoCoreMultiple(Graph<Integer, Link> graph, Demand demand, Input input, Double crosstalkPerUnitLength) {
         // CAMBIO 3: Calcular FS necesarios por fibra según agrupamiento FSDM
         int fsNecesariosPorFibra = (int) Math.ceil((double) demand.getFs() / input.getFibrasPorGrupo());
-        
+
         Integer capacity = input.getCapacity();
         Integer cores = input.getCores();
         BigDecimal maxCrosstalk = input.getMaxCrosstalk();
@@ -189,9 +196,10 @@ public class Algorithms {
         }
         EstablishedRoute establisedRoute;
         if (fsIndexBegin != null && !kspPlaced.isEmpty()) {
+            // FSDM: fsWidth = fsNecesariosPorFibra, originalDemandFs = demand.getFs()
             establisedRoute = new EstablishedRoute(kspPlaced.get(0).getEdgeList(),
-                    fsIndexBegin, demand.getFs(), demand.getLifetime(),
-                    demand.getSource(), demand.getDestination(), kspPlacedCores.get(0));
+                    fsIndexBegin, fsNecesariosPorFibra, demand.getLifetime(),
+                    demand.getSource(), demand.getDestination(), kspPlacedCores.get(0), demand.getFs());
         } else {
             //System.out.println("Bloqueo");
             establisedRoute = null;
@@ -225,6 +233,12 @@ public class Algorithms {
     }
 
     public static Boolean isNextToCrosstalkFreeCores(Link link, BigDecimal maxCrosstalk, Integer core, Integer fsIndexBegin, Integer fsWidth, Double crosstalkPerUnitLength) {
+        // FSDM: Si el crosstalk es despreciable (fibras físicamente aisladas), omitir verificación
+        if (crosstalkPerUnitLength < FSDM_CROSSTALK_THRESHOLD) {
+            return true;
+        }
+
+        // SDM: Verificación de crosstalk inter-core (topología de cores adyacentes)
         List<Integer> vecinos = Utils.getCoreVecinos(core);
         for (Integer coreVecino : vecinos) {
             for (Integer i = fsIndexBegin; i < fsIndexBegin + fsWidth; i++) {

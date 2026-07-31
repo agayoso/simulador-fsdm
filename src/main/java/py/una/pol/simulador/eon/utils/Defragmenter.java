@@ -101,7 +101,7 @@ public class Defragmenter {
                 // 4.2) Intentar instalar la demanda con FS/cores fijos (puede fallar por disponibilidad/XT)
                 EstablishedRoute nueva = intentarAsignarConCoresFijos(
                         demandaBloqueada, pathLinks, coresPorLinkElegidos, mejorStart,
-                        graph, maxCrosstalk, crosstalkPerUnitLength, cores);
+                        graph, maxCrosstalk, crosstalkPerUnitLength, cores, input);
 
                 if (nueva == null) {
                     // Rollback simple de las conflictivas y probamos el siguiente candidato
@@ -287,7 +287,7 @@ public class Defragmenter {
                 // 4.2) Intentar instalar la demanda con FS/cores fijos (puede fallar por disponibilidad/XT)
                 EstablishedRoute nueva = intentarAsignarConCoresFijos(
                         demandaBloqueada, pathLinks, coresPorLinkElegidos, mejorStart,
-                        graph, maxCrosstalk, crosstalkPerUnitLength, cores);
+                        graph, maxCrosstalk, crosstalkPerUnitLength, cores, input);
 
                 if (nueva == null) {
                     // Rollback simple de las conflictivas y probamos el siguiente candidato
@@ -472,7 +472,7 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 // 4.2) Insertar la demanda bloqueada
                 EstablishedRoute nueva = intentarAsignarConCoresFijos(
                         demandaBloqueada, pathLinks, bestCoresPorLink, bestStart,
-                        graph, maxCrosstalk, crosstalkPerUnitLenght, cores);
+                        graph, maxCrosstalk, crosstalkPerUnitLenght, cores, input);
 
                 if (nueva == null) {
                     // rollback simple de slots
@@ -706,9 +706,13 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             int start,
             Graph<Integer, Link> graph,
             BigDecimal maxCrosstalk, double crosstalkPerUnitLength,
-            int cores) {
+            int cores, Input input) {
 
-        int width = demanda.getFs();
+        // FSDM: Calcular width por fibra
+        int originalFs = demanda.getFs();
+        int fibrasPorGrupo = (input.getFibrasPorGrupo() != null) ? input.getFibrasPorGrupo() : 1;
+        int width = (int) Math.ceil((double) originalFs / fibrasPorGrupo);
+        
         if (pathLinks == null || pathLinks.isEmpty()) {
             return null;
         }
@@ -732,9 +736,10 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         }
 
         // Si todos los enlaces pasan, crear y asignar
+        // FSDM: usar constructor de 8 parámetros (fsWidth=width calculado, originalDemandFs=originalFs)
         EstablishedRoute nueva = new EstablishedRoute(
                 pathLinks, start, width, demanda.getLifetime(),
-                demanda.getSource(), demanda.getDestination(), new ArrayList<>(pathCores));
+                demanda.getSource(), demanda.getDestination(), new ArrayList<>(pathCores), originalFs);
         Utils.assignFs(graph, nueva, crosstalkPerUnitLength);
         return nueva;
     }
@@ -747,27 +752,47 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         Demand d = new Demand();
         d.setSource(r.getFrom());
         d.setDestination(r.getTo());
-        d.setFs(r.getFsWidth());
+        // FSDM Problem 2 fix: usar originalDemandFs en vez de fsWidth
+        // fsWidth contiene fsNecesariosPorFibra (valor dividido), originalDemandFs tiene el valor original
+        d.setFs(r.getOriginalDemandFs());
         d.setLifetime(r.getLifetime());
         // si tu Demand tiene ID/tiempo, setéalos si hace falta
         return d;
     }
 
-    private static class DefragMetrics {
+    public static class DefragMetrics {
 
         public int conteoExitos;
         public int conteoFallido;
         public int routesMoved; //acumula rutas reconfiguradas en éxitos
+
+        public void reset() {
+            conteoExitos = 0;
+            conteoFallido = 0;
+            routesMoved = 0;
+        }
     }
 
-    private static final DefragMetrics metricsBFRmax1 = new DefragMetrics();
-    private static final DefragMetrics metricsBFRmax3 = new DefragMetrics();
+    public static final DefragMetrics metricsBFRmax1 = new DefragMetrics();
+    public static final DefragMetrics metricsBFRmax3 = new DefragMetrics();
 
-    private static final DefragMetrics metricsBFRmin1 = new DefragMetrics();
-    private static final DefragMetrics metricsBFRmin3 = new DefragMetrics();
+    public static final DefragMetrics metricsBFRmin1 = new DefragMetrics();
+    public static final DefragMetrics metricsBFRmin3 = new DefragMetrics();
 
-    private static final DefragMetrics metricsFullRuteoMin1 = new DefragMetrics();
-    private static final DefragMetrics metricsFullRuteoMin3 = new DefragMetrics();
+    public static final DefragMetrics metricsFullRuteoMin1 = new DefragMetrics();
+    public static final DefragMetrics metricsFullRuteoMin3 = new DefragMetrics();
+
+    /**
+     * Resetea todas las métricas de desfragmentación al inicio de cada experimento
+     */
+    public static void resetAllMetrics() {
+        metricsBFRmax1.reset();
+        metricsBFRmax3.reset();
+        metricsBFRmin1.reset();
+        metricsBFRmin3.reset();
+        metricsFullRuteoMin1.reset();
+        metricsFullRuteoMin3.reset();
+    }
 
     private static void printMetricsBFRmax1() {
         System.out.println("\n=== Métricas del Desfragmentador ===");
@@ -853,6 +878,14 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
     private static void updateCrosstalkFSList(List<BigDecimal> crosstalkFSList,
             int core, Link link, double crosstalkPerUnitLength, int width) {
 
+        // FSDM: Omitir actualización de crosstalk si las fibras son físicamente independientes
+        // Este threshold debe coincidir con el usado en Algorithms.java y Utils.java
+        final double FSDM_CROSSTALK_THRESHOLD = 1e-10;
+        if (crosstalkPerUnitLength < FSDM_CROSSTALK_THRESHOLD) {
+            return; // FSDM: no hay crosstalk entre fibras aisladas
+        }
+
+        // SDM: Actualizar crosstalk inter-core
         for (int i = 0; i < width; i++) {
             BigDecimal current = crosstalkFSList.get(i);
             crosstalkFSList.set(i, current.add(Utils.toDB(Utils.XT(
@@ -897,8 +930,9 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 }
                 copiedPath.add(new Link(link.getDistance(), copiedCores, link.getFrom(), link.getTo()));
             }
+            // Usar constructor de 8 parámetros para preservar originalDemandFs
             return new EstablishedRoute(copiedPath, route.getFsIndexBegin(), route.getFsWidth(),
-                    route.getLifetime(), route.getFrom(), route.getTo(), new ArrayList<>(route.getPathCores()));
+                    route.getLifetime(), route.getFrom(), route.getTo(), new ArrayList<>(route.getPathCores()), route.getOriginalDemandFs());
         } catch (Exception e) {
             log("Error al copiar ruta: " + e.getMessage());
             return null;
