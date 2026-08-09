@@ -23,6 +23,7 @@ import static py.una.pol.simulador.eon.models.enums.RSAEnum.CORE_UNICO;
 import static py.una.pol.simulador.eon.models.enums.RSAEnum.MULTIPLES_CORES;
 import py.una.pol.simulador.eon.models.enums.TopologiesEnum;
 import py.una.pol.simulador.eon.rsa.Algorithms;
+import py.una.pol.simulador.eon.utils.CsvExporter;
 import py.una.pol.simulador.eon.utils.Defragmenter;
 import py.una.pol.simulador.eon.utils.MathUtils;
 import py.una.pol.simulador.eon.utils.Utils;
@@ -50,8 +51,8 @@ public class SimulatorTest {
         input.setCapacity(320);
 
         // ========== CONFIGURACIÓN AGRUPAMIENTO FSDM (ÚNICO PUNTO DE CONFIGURACIÓN) ==========
-        input.setCores(8);              // Cantidad total de fibras
-        input.setFibrasPorGrupo(4);     // Fibras por grupo
+        input.setCores(9);              // Cantidad total de fibras
+        input.setFibrasPorGrupo(3);     // Fibras por grupo
         input.calcularGrupos();         // Calcula automáticamente los grupos: [[0,1], [2,3], [4,5]]
         // ====================================================================================
 
@@ -82,7 +83,7 @@ public class SimulatorTest {
         try {
             createTable();
             // Datos de entrada
-            for (int erlang = 2500; erlang <= 2500; erlang = erlang + 1000) {
+            for (int erlang = 5000; erlang <= 5000; erlang = erlang + 1000) {
 
                 //Contadores de tiempo de ejecución de cada estrategia
                 long tiempoTotalDFbFRmax1 = 0L;
@@ -786,6 +787,18 @@ public class SimulatorTest {
         System.out.printf("%-22s : %s%n", "DFfullRuteoMin P3", formatDuration(tiempoFullRuteoMin3));
 
         System.out.println("\n============================================================\n\n");
+
+        // Exportar resultados a CSV
+        CsvExporter.exportarResultado(
+            topology, input, erlang, totalDemandas,
+            bloqueosSinDF,
+            bloqueoBFRmax1, bloqueoBFRmax3,
+            bloqueoBFRmin1, bloqueoBFRmin3,
+            bloqueoFullRuteoMin1, bloqueoFullRuteoMin3,
+            tiempoBFRmax1, tiempoBFRmax3,
+            tiempoBFRmin1, tiempoBFRmin3,
+            tiempoFullRuteoMin1, tiempoFullRuteoMin3
+        );
     }
 
     /**
