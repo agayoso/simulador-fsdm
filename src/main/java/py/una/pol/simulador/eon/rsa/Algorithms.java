@@ -136,70 +136,106 @@ public class Algorithms {
         Integer capacity = input.getCapacity();
         Integer cores = input.getCores();
         BigDecimal maxCrosstalk = input.getMaxCrosstalk();
-        int k = 0;
-
+        
         List<GraphPath<Integer, Link>> kspPlaced = new ArrayList<>();
         List<List<Integer>> kspPlacedCores = new ArrayList<>();
         Integer fsIndexBegin = null;
-        Integer selectedIndex;
-        // Iteramos los KSP elegidos
-        //k caminos más cortos entre source y destination de la demanda actual
-
-        KShortestSimplePaths<Integer, Link> kspFinder = new KShortestSimplePaths<>(graph);
-        List<GraphPath<Integer, Link>> kspaths = kspFinder.getPaths(demand.getSource(), demand.getDestination(), 5);
-        while (k < kspaths.size() && kspaths.get(k) != null) {
-            fsIndexBegin = null;
-            GraphPath<Integer, Link> ksp = kspaths.get(k);
-            // Recorremos los FS
-            for (int i = 0; i < capacity - demand.getFs(); i++) {
-                List<Link> enlacesLibres = new ArrayList<>();
-                List<Integer> kspCores = new ArrayList<>();
-                List<BigDecimal> crosstalkFSList = new ArrayList<>();
-                for (int fsCrosstalkIndex = 0; fsCrosstalkIndex < fsNecesariosPorFibra; fsCrosstalkIndex++) {
-                    crosstalkFSList.add(BigDecimal.ZERO);
-                }
-                for (Link link : ksp.getEdgeList()) {
-                    for (int core = 0; core < cores; core++) {
-                        if (i < capacity - fsNecesariosPorFibra) {
-                            List<FrequencySlot> bloqueFS = link.getCores().get(core).getFrequencySlots().subList(i, i + fsNecesariosPorFibra);
-                            // Controla si está ocupado por una demanda
-                            if (isFSBlockFree(bloqueFS)) {
-                                // Control de crosstalk
-                                if (isFsBlockCrosstalkFree(bloqueFS, maxCrosstalk, crosstalkFSList)) {
-                                    if (isNextToCrosstalkFreeCores(link, maxCrosstalk, core, i, fsNecesariosPorFibra, crosstalkPerUnitLength)) {
-                                        enlacesLibres.add(link);
-                                        kspCores.add(core);
-                                        fsIndexBegin = i;
-                                        selectedIndex = k;
-                                        for (int crosstalkFsListIndex = 0; crosstalkFsListIndex < crosstalkFSList.size(); crosstalkFsListIndex++) {
-                                            BigDecimal crosstalkRuta = crosstalkFSList.get(crosstalkFsListIndex);
-                                            crosstalkRuta = crosstalkRuta.add(Utils.toDB(Utils.XT(Utils.getCantidadVecinos(core), crosstalkPerUnitLength, link.getDistance())));
-                                            crosstalkFSList.set(crosstalkFsListIndex, crosstalkRuta);
-                                        }
-                                        core = cores;
-                                        // Si todos los enlaces tienen el mismo bloque de FS libre, se agrega la ruta a la lista de rutas establecidas.
-                                        if (enlacesLibres.size() == ksp.getEdgeList().size()) {
-                                            kspPlaced.add(kspaths.get(selectedIndex));
-                                            kspPlacedCores.add(kspCores);
-                                            k = kspaths.size();
-                                            i = capacity;
-                                        }
-                                    }
+        Integer selectedIndex = 0;
+        
+        // FSDM: Probar cada grupo de fibras independientemente
+        // Una demanda solo puede usar las fibras de UN grupo
+        for (List<Integer> grupo : input.getGrupos()) {
+            if (!kspPlaced.isEmpty()) {
+                break; // Ya encontramos un grupo con espacio
+            }
+            
+            int k = 0;
+            // Iteramos los KSP elegidos
+            KShortestSimplePaths<Integer, Link> kspFinder = new KShortestSimplePaths<>(graph);
+            List<GraphPath<Integer, Link>> kspaths = kspFinder.getPaths(demand.getSource(), demand.getDestination(), 5);
+            
+            while (k < kspaths.size() && kspaths.get(k) != null) {
+                fsIndexBegin = null;
+                GraphPath<Integer, Link> ksp = kspaths.get(k);
+                // Recorremos los FS
+                for (int i = 0; i < capacity - demand.getFs(); i++) {
+                    List<Integer> kspCores = new ArrayList<>();
+                    List<BigDecimal> crosstalkFSList = new ArrayList<>();
+                    for (int fsCrosstalkIndex = 0; fsCrosstalkIndex < fsNecesariosPorFibra; fsCrosstalkIndex++) {
+                        crosstalkFSList.add(BigDecimal.ZERO);
+                    }
+                    
+                    boolean bloqueDisponibleEnTodosEnlaces = true;
+                    
+                    // FSDM: Verificar que el bloque esté disponible en TODAS las fibras del grupo en TODOS los enlaces
+                    for (Link link : ksp.getEdgeList()) {
+                        boolean enlaceOk = true;
+                        
+                        if (i >= capacity - fsNecesariosPorFibra) {
+                            enlaceOk = false;
+                        } else {
+                            // Verificar TODAS las fibras del grupo en este enlace
+                            for (int core : grupo) {
+                                List<FrequencySlot> bloqueFS = link.getCores().get(core).getFrequencySlots().subList(i, i + fsNecesariosPorFibra);
+                                
+                                if (!isFSBlockFree(bloqueFS)) {
+                                    enlaceOk = false;
+                                    break;
                                 }
-
+                                
+                                if (!isFsBlockCrosstalkFree(bloqueFS, maxCrosstalk, crosstalkFSList)) {
+                                    enlaceOk = false;
+                                    break;
+                                }
+                                
+                                if (!isNextToCrosstalkFreeCores(link, maxCrosstalk, core, i, fsNecesariosPorFibra, crosstalkPerUnitLength)) {
+                                    enlaceOk = false;
+                                    break;
+                                }
                             }
                         }
+                        
+                        if (enlaceOk) {
+                            // Este enlace tiene el bloque disponible en TODAS las fibras del grupo
+                            // Añadir TODAS las fibras del grupo para este enlace
+                            for (int core : grupo) {
+                                kspCores.add(core);
+                            }
+                            
+                            // Actualizar crosstalk acumulado (aunque en FSDM se bypassea)
+                            for (int core : grupo) {
+                                for (int crosstalkFsListIndex = 0; crosstalkFsListIndex < crosstalkFSList.size(); crosstalkFsListIndex++) {
+                                    BigDecimal crosstalkRuta = crosstalkFSList.get(crosstalkFsListIndex);
+                                    crosstalkRuta = crosstalkRuta.add(Utils.toDB(Utils.XT(Utils.getCantidadVecinos(core), crosstalkPerUnitLength, link.getDistance())));
+                                    crosstalkFSList.set(crosstalkFsListIndex, crosstalkRuta);
+                                }
+                            }
+                        } else {
+                            bloqueDisponibleEnTodosEnlaces = false;
+                            break; // Este grupo no funciona para esta posición FS
+                        }
+                    }
+                    
+                    // Si TODOS los enlaces tienen el bloque disponible en TODAS las fibras del grupo
+                    if (bloqueDisponibleEnTodosEnlaces && kspCores.size() == ksp.getEdgeList().size() * grupo.size()) {
+                        kspPlaced.add(ksp);
+                        kspPlacedCores.add(kspCores);
+                        fsIndexBegin = i;
+                        selectedIndex = k;
+                        k = kspaths.size(); // Salir del loop de paths
+                        i = capacity; // Salir del loop de FS
+                        break;
                     }
                 }
+                k++;
             }
-            k++;
         }
         EstablishedRoute establisedRoute;
         if (fsIndexBegin != null && !kspPlaced.isEmpty()) {
-            // FSDM: fsWidth = fsNecesariosPorFibra, originalDemandFs = demand.getFs()
+            // FSDM: fsWidth = fsNecesariosPorFibra, originalDemandFs = demand.getFs(), fibrasPorGrupo explícito
             establisedRoute = new EstablishedRoute(kspPlaced.get(0).getEdgeList(),
                     fsIndexBegin, fsNecesariosPorFibra, demand.getLifetime(),
-                    demand.getSource(), demand.getDestination(), kspPlacedCores.get(0), demand.getFs());
+                    demand.getSource(), demand.getDestination(), kspPlacedCores.get(0), demand.getFs(), input.getFibrasPorGrupo());
         } else {
             //System.out.println("Bloqueo");
             establisedRoute = null;

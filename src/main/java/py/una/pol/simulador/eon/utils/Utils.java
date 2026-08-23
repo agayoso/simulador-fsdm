@@ -35,6 +35,12 @@ public class Utils {
     private static final double FSDM_CROSSTALK_THRESHOLD = 1e-10;
 
     /**
+     * Flag para habilitar detección de sobrescritura de recursos en assignFs().
+     * Cuando está habilitado, imprime diagnósticos si assignFs() intenta asignar sobre un slot ya ocupado.
+     */
+    private static final boolean ENABLE_ASSIGNFS_OVERWRITE_DETECTION = true;
+
+    /**
      * Creates the graph that represents the optical network
      *
      * @param topology Topology selected for the network
@@ -165,26 +171,58 @@ public class Utils {
      * @return Respuesta de la operación
      */
     public static AssignFsResponse assignFs(Graph<Integer, Link> graph, EstablishedRoute establishedRoute, Double crosstalkPerUnitLength) {
-        for (int j = 0; j < establishedRoute.getPath().size(); j++) {
-            for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
-                establishedRoute.getPath().get(j).getCores().get(establishedRoute.getPathCores().get(j)).getFrequencySlots().get(i).setFree(false);
-                Integer core = establishedRoute.getPathCores().get(j);
-                establishedRoute.getPath().get(j).getCores().get(core).getFrequencySlots().get(i).setLifetime(establishedRoute.getLifetime());
+        // FSDM: pathCores contiene múltiples cores por enlace (fibrasPorGrupo cores por enlace)
+        // SDM original: pathCores contiene un core por enlace
+        // Usar fibrasPorGrupo explícito de la ruta (fuente de verdad)
+        int fibrasPorEnlace = establishedRoute.getFibrasPorGrupo();
+        int numEnlaces = establishedRoute.getPath().size();
+        
+        for (int linkIdx = 0; linkIdx < numEnlaces; linkIdx++) {
+            Link link = establishedRoute.getPath().get(linkIdx);
+            
+            // Asignar en todas las fibras de este enlace (1 en SDM, fibrasPorGrupo en FSDM)
+            for (int f = 0; f < fibrasPorEnlace; f++) {
+                Integer core = establishedRoute.getPathCores().get(linkIdx * fibrasPorEnlace + f);
+                
+                for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
+                    // ========== DIAGNÓSTICO: Detectar sobrescritura de slots ocupados ==========
+                    if (ENABLE_ASSIGNFS_OVERWRITE_DETECTION) {
+                        boolean wasOccupied = !link.getCores().get(core).getFrequencySlots().get(i).isFree();
+                        int previousLifetime = link.getCores().get(core).getFrequencySlots().get(i).getLifetime();
+                        
+                        if (wasOccupied) {
+                            System.out.println("\n⚠️ ALERTA ASSIGNFS: Sobrescribiendo slot ocupado");
+                            System.out.println("  Ruta que intenta asignar: " + establishedRoute.getFrom() + "->" + establishedRoute.getTo() 
+                                + " | lifetime: " + establishedRoute.getLifetime());
+                            System.out.println("  Link: " + link.getFrom() + "-" + link.getTo() 
+                                + " | Core: " + core 
+                                + " | FS: " + i);
+                            System.out.println("  Estado ANTERIOR: free=ocupado, lifetime=" + previousLifetime);
+                            System.out.println("  Estado que se va a sobrescribir: free=ocupado -> libre (INCORRECTO), lifetime=" + previousLifetime + " -> " + establishedRoute.getLifetime());
+                            System.out.println("  Rango de asignación: fs[" + establishedRoute.getFsIndexBegin() + "-" + (establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth() - 1) + "]");
+                            System.out.println("  Cores usados por esta ruta: " + establishedRoute.getPathCores());
+                        }
+                    }
+                    // ========== FIN DIAGNÓSTICO ==========
+                    
+                    link.getCores().get(core).getFrequencySlots().get(i).setFree(false);
+                    link.getCores().get(core).getFrequencySlots().get(i).setLifetime(establishedRoute.getLifetime());
+                }
                 
                 // FSDM: Omitir actualización de crosstalk si las fibras son físicamente independientes
                 if (crosstalkPerUnitLength >= FSDM_CROSSTALK_THRESHOLD) {
                     // SDM: Actualizar crosstalk en cores vecinos
                     List<Integer> coreVecinos = getCoreVecinos(core);
-                    // TODO: Asignar crosstalk
-                    for (Integer coreIndex = 0; coreIndex < establishedRoute.getPath().get(j).getCores().size(); coreIndex++) {
-                        if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
-                            double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, establishedRoute.getPath().get(j).getDistance());
-                            BigDecimal crosstalkDB = toDB(crosstalk);
-                            establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().add(crosstalkDB));
+                    for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
+                        for (Integer coreIndex = 0; coreIndex < link.getCores().size(); coreIndex++) {
+                            if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
+                                double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, link.getDistance());
+                                BigDecimal crosstalkDB = toDB(crosstalk);
+                                link.getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(link.getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().add(crosstalkDB));
 
-                            BigDecimal existingCrosstalk = graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
-                            graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.add(crosstalkDB));
-                            //System.out.println("CT despues de suma" + graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk());
+                                BigDecimal existingCrosstalk = graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
+                                graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.add(crosstalkDB));
+                            }
                         }
                     }
                 }
@@ -203,26 +241,38 @@ public class Utils {
      * fibra
      */
     public static void deallocateFs(Graph<Integer, Link> graph, EstablishedRoute establishedRoute, Double crosstalkPerUnitLength) {
-        for (int j = 0; j < establishedRoute.getPath().size(); j++) {
-            for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
-                Integer core = establishedRoute.getPathCores().get(j);
-                establishedRoute.getPath().get(j).getCores().get(core).getFrequencySlots().get(i).setFree(true);
-                establishedRoute.getPath().get(j).getCores().get(core).getFrequencySlots().get(i).setLifetime(0);
+        // FSDM: pathCores contiene múltiples cores por enlace (fibrasPorGrupo cores por enlace)
+        // SDM original: pathCores contiene un core por enlace
+        // Usar fibrasPorGrupo explícito de la ruta (fuente de verdad)
+        int fibrasPorEnlace = establishedRoute.getFibrasPorGrupo();
+        int numEnlaces = establishedRoute.getPath().size();
+        
+        for (int linkIdx = 0; linkIdx < numEnlaces; linkIdx++) {
+            Link link = establishedRoute.getPath().get(linkIdx);
+            
+            // Desasignar en todas las fibras de este enlace (1 en SDM, fibrasPorGrupo en FSDM)
+            for (int f = 0; f < fibrasPorEnlace; f++) {
+                Integer core = establishedRoute.getPathCores().get(linkIdx * fibrasPorEnlace + f);
+                
+                for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
+                    link.getCores().get(core).getFrequencySlots().get(i).setFree(true);
+                    link.getCores().get(core).getFrequencySlots().get(i).setLifetime(0);
+                }
                 
                 // FSDM: Omitir actualización de crosstalk si las fibras son físicamente independientes
                 if (crosstalkPerUnitLength >= FSDM_CROSSTALK_THRESHOLD) {
                     // SDM: Actualizar crosstalk en cores vecinos
                     List<Integer> coreVecinos = getCoreVecinos(core);
-                    // TODO: Desasignar crosttalk
-                    for (Integer coreIndex = 0; coreIndex < establishedRoute.getPath().get(j).getCores().size(); coreIndex++) {
-                        if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
-                            double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, establishedRoute.getPath().get(j).getDistance());
-                            BigDecimal crosstalkDB = toDB(crosstalk);
-                            establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(establishedRoute.getPath().get(j).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().subtract(crosstalkDB));
+                    for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
+                        for (Integer coreIndex = 0; coreIndex < link.getCores().size(); coreIndex++) {
+                            if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
+                                double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, link.getDistance());
+                                BigDecimal crosstalkDB = toDB(crosstalk);
+                                link.getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(link.getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().subtract(crosstalkDB));
 
-                            BigDecimal existingCrosstalk = graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
-                            graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.subtract(crosstalkDB));
-                            //System.out.println("CT despues de suma" + graph.getEdge(establishedRoute.getPath().get(j).getTo(), establishedRoute.getPath().get(j).getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk());
+                                BigDecimal existingCrosstalk = graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
+                                graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.subtract(crosstalkDB));
+                            }
                         }
                     }
                 }

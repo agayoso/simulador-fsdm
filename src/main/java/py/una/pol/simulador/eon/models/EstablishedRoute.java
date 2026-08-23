@@ -47,6 +47,12 @@ public class EstablishedRoute {
      * En modo FSDM: originalDemandFs es el valor original, fsWidth es fsNecesariosPorFibra
      */
     private Integer originalDemandFs;
+    /**
+     * Cantidad de fibras por grupo (FSDM).
+     * En modo SDM: fibrasPorGrupo = 1
+     * En modo FSDM: fibrasPorGrupo define cuántas fibras del grupo se usan por enlace
+     */
+    private Integer fibrasPorGrupo;
 
     /**
      * Constructor vacío
@@ -75,6 +81,7 @@ public class EstablishedRoute {
         this.to = to;
         this.pathCores = pathCores;
         this.originalDemandFs = fsWidth; // Backward compatibility: asumir no hay división
+        this.fibrasPorGrupo = 1; // SDM original: 1 fibra por enlace
     }
 
     /**
@@ -88,8 +95,9 @@ public class EstablishedRoute {
      * @param to Nodo destino
      * @param pathCores Núcleos a los que pertenecen los enlaces de la lista path
      * @param originalDemandFs Cantidad original de ranuras solicitadas (antes de división FSDM)
+     * @param fibrasPorGrupo Cantidad de fibras por grupo (1 para SDM, >1 para FSDM)
      */
-    public EstablishedRoute(List<Link> path, Integer fsIndexBegin, Integer fsWidth, Integer lifetime, Integer from, Integer to, List<Integer> pathCores, Integer originalDemandFs) {
+    public EstablishedRoute(List<Link> path, Integer fsIndexBegin, Integer fsWidth, Integer lifetime, Integer from, Integer to, List<Integer> pathCores, Integer originalDemandFs, Integer fibrasPorGrupo) {
         this.path = path;
         this.fsIndexBegin = fsIndexBegin;
         this.fsWidth = fsWidth;
@@ -98,6 +106,7 @@ public class EstablishedRoute {
         this.to = to;
         this.pathCores = pathCores;
         this.originalDemandFs = originalDemandFs;
+        this.fibrasPorGrupo = fibrasPorGrupo;
     }
 
     /**

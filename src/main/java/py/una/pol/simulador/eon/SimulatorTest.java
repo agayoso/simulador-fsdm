@@ -2,6 +2,12 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
+
+/*  
+*   Author: Andres Gayoso
+*   Se modifica el simulador emulando
+*   una red FSDM o agrupamiento de fibras
+*/ 
 package py.una.pol.simulador.eon;
 
 import java.io.IOException;
@@ -40,19 +46,19 @@ public class SimulatorTest {
     private Input getTestingInput(Integer erlang) {
         Input input = new Input();
 
-        input.setDemands(10000);
+        input.setDemands(5000);
         input.setTopologies(new ArrayList<>());
         //input.getTopologies().add(TopologiesEnum.NSFNET);
         input.getTopologies().add(TopologiesEnum.USNET);
-       // input.getTopologies().add(TopologiesEnum.JPNNET);
+        //input.getTopologies().add(TopologiesEnum.JPNNET);
         input.setFsWidth(new BigDecimal("12.5"));
         input.setFsRangeMax(8);
         input.setFsRangeMin(2);
         input.setCapacity(320);
 
         // ========== CONFIGURACIÓN AGRUPAMIENTO FSDM (ÚNICO PUNTO DE CONFIGURACIÓN) ==========
-        input.setCores(9);              // Cantidad total de fibras
-        input.setFibrasPorGrupo(3);     // Fibras por grupo
+        input.setCores(4);              // Cantidad total de fibras
+        input.setFibrasPorGrupo(2);     // Fibras por grupo
         input.calcularGrupos();         // Calcula automáticamente los grupos: [[0,1], [2,3], [4,5]]
         // ====================================================================================
 
@@ -83,7 +89,7 @@ public class SimulatorTest {
         try {
             createTable();
             // Datos de entrada
-            for (int erlang = 5000; erlang <= 5000; erlang = erlang + 1000) {
+            for (int erlang = 2500; erlang <= 2500; erlang = erlang + 1000) {
 
                 //Contadores de tiempo de ejecución de cada estrategia
                 long tiempoTotalDFbFRmax1 = 0L;

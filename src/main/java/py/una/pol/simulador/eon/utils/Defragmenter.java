@@ -658,11 +658,17 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                     continue;
                 }
 
-                // Traemos el core de la ruta que coincide con el link de la demanda bloqueada
-                Integer coreRuta = r.getPathCores().get(idx);
-                //vemos si tiene el mismo core en ese enlace, compara core de la posicion del enlace de ruta
-                //que pasa por el link de la demanda bloqueada con el core con mayor bfr de ese link
-                if (coreRuta == null || coreRuta != core) {
+                // FSDM Fix: verificar si la ruta usa el core en CUALQUIER fibra del grupo para este enlace
+                int fibrasPorGrupo = r.getFibrasPorGrupo();
+                boolean usaEsteCore = false;
+                for (int f = 0; f < fibrasPorGrupo; f++) {
+                    Integer coreRuta = r.getPathCores().get(idx * fibrasPorGrupo + f);
+                    if (coreRuta != null && coreRuta == core) {
+                        usaEsteCore = true;
+                        break;
+                    }
+                }
+                if (!usaEsteCore) {
                     continue;
                 }
 
@@ -722,24 +728,75 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             return null;
         }
 
-        List<BigDecimal> crosstalkFSList = new ArrayList<>(Collections.nCopies(width, BigDecimal.ZERO));
-        for (int li = 0; li < pathLinks.size(); li++) {
-            Link link = pathLinks.get(li);
-            int core = pathCores.get(li);
-
-            // chequeo de disponibilidad + crosstalk
-            if (!isBlockAvailable(link, core, start, width, maxCrosstalk, crosstalkFSList, crosstalkPerUnitLength)) {
-                return null;
+        // ==============================================================
+        // FIX ROOT CAUSE: Determinar grupo FSDM ANTES de verificar
+        // ==============================================================
+        List<Integer> grupoSeleccionado = null;
+        if (fibrasPorGrupo > 1 && input.getGrupos() != null && !input.getGrupos().isEmpty()) {
+            int primerCore = pathCores.get(0);
+            for (List<Integer> grupo : input.getGrupos()) {
+                if (grupo.contains(primerCore)) {
+                    grupoSeleccionado = grupo;
+                    break;
+                }
             }
-            // acumular crosstalk “virtual” en la evaluación
-            updateCrosstalkFSList(crosstalkFSList, core, link, crosstalkPerUnitLength, width);
+            if (grupoSeleccionado == null) {
+                return null; // No se encontró grupo válido para el core seleccionado
+            }
+        }
+
+        // ==============================================================
+        // FIX ROOT CAUSE: Verificar disponibilidad en TODOS los cores
+        // del grupo FSDM (no solo el seleccionado por la heurística)
+        // ==============================================================
+        List<BigDecimal> crosstalkFSList = new ArrayList<>(Collections.nCopies(width, BigDecimal.ZERO));
+        
+        if (fibrasPorGrupo > 1 && grupoSeleccionado != null) {
+            // FSDM: Verificar TODOS los cores del grupo para cada enlace
+            for (int li = 0; li < pathLinks.size(); li++) {
+                Link link = pathLinks.get(li);
+                
+                // Verificar disponibilidad en TODOS los cores del grupo
+                for (Integer coreDelGrupo : grupoSeleccionado) {
+                    if (!isBlockAvailable(link, coreDelGrupo, start, width, maxCrosstalk, crosstalkFSList, crosstalkPerUnitLength)) {
+                        return null; // Rechazar si algún core del grupo está ocupado
+                    }
+                    updateCrosstalkFSList(crosstalkFSList, coreDelGrupo, link, crosstalkPerUnitLength, width);
+                }
+            }
+        } else {
+            // SDM original o fibrasPorGrupo=1: verificar solo el core seleccionado
+            for (int li = 0; li < pathLinks.size(); li++) {
+                Link link = pathLinks.get(li);
+                int core = pathCores.get(li);
+                
+                if (!isBlockAvailable(link, core, start, width, maxCrosstalk, crosstalkFSList, crosstalkPerUnitLength)) {
+                    return null;
+                }
+                updateCrosstalkFSList(crosstalkFSList, core, link, crosstalkPerUnitLength, width);
+            }
+        }
+
+        // ==============================================================
+        // Expandir pathCores para FSDM (ahora todos los cores ya fueron verificados)
+        // ==============================================================
+        List<Integer> pathCoresExpandido;
+        if (fibrasPorGrupo > 1 && grupoSeleccionado != null) {
+            // FSDM: Expandir a todas las fibras del grupo (ya verificadas)
+            pathCoresExpandido = new ArrayList<>();
+            for (int li = 0; li < pathLinks.size(); li++) {
+                pathCoresExpandido.addAll(grupoSeleccionado);
+            }
+        } else {
+            // SDM: usar pathCores tal cual
+            pathCoresExpandido = new ArrayList<>(pathCores);
         }
 
         // Si todos los enlaces pasan, crear y asignar
-        // FSDM: usar constructor de 8 parámetros (fsWidth=width calculado, originalDemandFs=originalFs)
+        // FSDM: usar constructor de 9 parámetros (fsWidth=width calculado, originalDemandFs=originalFs, fibrasPorGrupo)
         EstablishedRoute nueva = new EstablishedRoute(
                 pathLinks, start, width, demanda.getLifetime(),
-                demanda.getSource(), demanda.getDestination(), new ArrayList<>(pathCores), originalFs);
+                demanda.getSource(), demanda.getDestination(), pathCoresExpandido, originalFs, fibrasPorGrupo);
         Utils.assignFs(graph, nueva, crosstalkPerUnitLength);
         return nueva;
     }
@@ -930,9 +987,9 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 }
                 copiedPath.add(new Link(link.getDistance(), copiedCores, link.getFrom(), link.getTo()));
             }
-            // Usar constructor de 8 parámetros para preservar originalDemandFs
+            // Usar constructor de 9 parámetros para preservar originalDemandFs y fibrasPorGrupo
             return new EstablishedRoute(copiedPath, route.getFsIndexBegin(), route.getFsWidth(),
-                    route.getLifetime(), route.getFrom(), route.getTo(), new ArrayList<>(route.getPathCores()), route.getOriginalDemandFs());
+                    route.getLifetime(), route.getFrom(), route.getTo(), new ArrayList<>(route.getPathCores()), route.getOriginalDemandFs(), route.getFibrasPorGrupo());
         } catch (Exception e) {
             log("Error al copiar ruta: " + e.getMessage());
             return null;
@@ -1104,9 +1161,17 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 continue;
             }
 
-            // ¿Lo hace por el mismo core?
-            Integer coreRuta = r.getPathCores().get(idx);
-            if (coreRuta == null || coreRuta != core) {
+            // FSDM Fix: ¿Lo hace por el mismo core? Verificar todas las fibras del grupo
+            int fibrasPorGrupo = r.getFibrasPorGrupo();
+            boolean usaEsteCore = false;
+            for (int f = 0; f < fibrasPorGrupo; f++) {
+                Integer coreRuta = r.getPathCores().get(idx * fibrasPorGrupo + f);
+                if (coreRuta != null && coreRuta == core) {
+                    usaEsteCore = true;
+                    break;
+                }
+            }
+            if (!usaEsteCore) {
                 continue;
             }
 
