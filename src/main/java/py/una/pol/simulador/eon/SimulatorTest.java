@@ -794,6 +794,9 @@ public class SimulatorTest {
 
         System.out.println("\n============================================================\n\n");
 
+        // Imprimir reporte de validación de invariantes
+        Defragmenter.printValidationReport();
+
         // Exportar resultados a CSV
         CsvExporter.exportarResultado(
             topology, input, erlang, totalDemandas,
