@@ -7,6 +7,9 @@
 *   Author: Andres Gayoso
 *   Se modifica el simulador emulando
 *   una red FSDM o agrupamiento de fibras
+*   
+*   Tema: Evaluación del impacto de la agrupación espacial de fibras
+*   sobre la desfragmentación en redes ópticas elásticas con tráfico dinámico.
 */ 
 package py.una.pol.simulador.eon;
 
