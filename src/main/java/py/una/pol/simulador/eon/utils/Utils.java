@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Random;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.SimpleWeightedGraph;
+import org.jgrapht.graph.DirectedWeightedMultigraph;
 import py.una.pol.simulador.eon.models.AssignFsResponse;
 import py.una.pol.simulador.eon.models.Core;
 import py.una.pol.simulador.eon.models.Demand;
@@ -56,7 +57,7 @@ public class Utils {
             throws IOException, IllegalArgumentException {
 
         ObjectMapper objectMapper = new ObjectMapper();
-        Graph<Integer, Link> g = new SimpleWeightedGraph<>(Link.class);
+        Graph<Integer, Link> g = new DirectedWeightedMultigraph<>(Link.class);
         InputStream is = ResourceReader.getFileFromResourceAsStream(topology.filePath());
         JsonNode object = objectMapper.readTree(is);
 
@@ -68,16 +69,22 @@ public class Utils {
             for (int i = 0; i < node.get("connections").size(); i++) {
                 int connection = node.get("connections").get(i).intValue();
                 int distance = node.get("distance").get(i).intValue();
-                List<Core> cores = new ArrayList<>();
-
+                
+                // Crear un solo conjunto de cores compartido por ambas direcciones
+                List<Core> sharedCores = new ArrayList<>();
                 for (int j = 0; j < numberOfCores; j++) {
                     Core core = new Core(fsWidth, capacity);
-                    cores.add(core);
+                    sharedCores.add(core);
                 }
 
-                Link link = new Link(distance, cores, vertex, connection);
-                g.addEdge(vertex, connection, link);
-                g.setEdgeWeight(link, distance);
+                // Crear dos Links direccionales compartiendo los mismos cores
+                Link linkForward = new Link(distance, sharedCores, vertex, connection);
+                Link linkBackward = new Link(distance, sharedCores, connection, vertex);
+                
+                g.addEdge(vertex, connection, linkForward);
+                g.addEdge(connection, vertex, linkBackward);
+                g.setEdgeWeight(linkForward, distance);
+                g.setEdgeWeight(linkBackward, distance);
             }
             vertex++;
         }
@@ -218,10 +225,9 @@ public class Utils {
                             if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
                                 double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, link.getDistance());
                                 BigDecimal crosstalkDB = toDB(crosstalk);
+                                // Con DirectedWeightedMultigraph y cores compartidos, actualizar link.getCores() 
+                                // automáticamente actualiza el core compartido por el Link en dirección inversa
                                 link.getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(link.getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().add(crosstalkDB));
-
-                                BigDecimal existingCrosstalk = graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
-                                graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.add(crosstalkDB));
                             }
                         }
                     }
@@ -268,10 +274,9 @@ public class Utils {
                             if (!core.equals(coreIndex) && coreVecinos.contains(coreIndex)) {
                                 double crosstalk = XT(getCantidadVecinos(coreIndex), crosstalkPerUnitLength, link.getDistance());
                                 BigDecimal crosstalkDB = toDB(crosstalk);
+                                // Con DirectedWeightedMultigraph y cores compartidos, actualizar link.getCores() 
+                                // automáticamente actualiza el core compartido por el Link en dirección inversa
                                 link.getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(link.getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk().subtract(crosstalkDB));
-
-                                BigDecimal existingCrosstalk = graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).getCrosstalk();
-                                graph.getEdge(link.getTo(), link.getFrom()).getCores().get(coreIndex).getFrequencySlots().get(i).setCrosstalk(existingCrosstalk.subtract(crosstalkDB));
                             }
                         }
                     }

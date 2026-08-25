@@ -39,12 +39,15 @@ public class Defragmenter {
     private static ValidationReport globalReport = new ValidationReport();
     
     // ========== INSTRUMENTACIÓN TEMPORAL PARA DEBUGGING DE ROLLBACK ==========
-    private static final boolean TRACE_SLOT = true;
+    private static final boolean TRACE_SLOT = false;  // Deshabilitado para enfocarse en validación
     private static final int TRACE_LINK_FROM = 8;
     private static final int TRACE_LINK_TO = 11;
     private static final int TRACE_CORE = 2;
     private static final int TRACE_FS = 211;
     private static int traceEventCounter = 0;
+    
+    private static final boolean TRACE_ROLLBACK_VALIDATION = true;
+    private static int rollbackCounter = 0;
     
     private static void traceSlot(String operation, Link link, int core, int fs, 
                                    boolean free, int lifetime, String context) {
@@ -511,8 +514,34 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             List<Integer> bestCoresPorLink = best.coresPorLink;
             Set<EstablishedRoute> bestConflictSet = best.conflictSet;
             
+            // === DIAGNÓSTICO: Estado ANTES de resolveCurrentReferences ===
+            if (TRACE_ROLLBACK_VALIDATION) {
+                System.out.println("\n[DIAGNÓSTICO] ===== ANTES de resolveCurrentReferences() =====");
+                System.out.println("[DIAGNÓSTICO] bestConflictSet tiene " + bestConflictSet.size() + " rutas:");
+                for (EstablishedRoute old : bestConflictSet) {
+                    System.out.println("[DIAGNÓSTICO]   OLD: " + old.getFrom() + "->" + old.getTo() + 
+                                     " [ID:" + Integer.toHexString(System.identityHashCode(old)) + "]" +
+                                     " path:" + pathToString(old.getPath()) +
+                                     " cores:" + old.getPathCores() +
+                                     " fs:" + old.getFsIndexBegin() + "-" + (old.getFsIndexBegin() + old.getFsWidth() - 1));
+                }
+            }
+            
             // FIX: Resolver referencias obsoletas a instancias actuales
             Set<EstablishedRoute> resolvedConflictSet = resolveCurrentReferences(bestConflictSet, establishedRoutes);
+            
+            // === DIAGNÓSTICO: Estado DESPUÉS de resolveCurrentReferences ===
+            if (TRACE_ROLLBACK_VALIDATION) {
+                System.out.println("\n[DIAGNÓSTICO] ===== DESPUÉS de resolveCurrentReferences() =====");
+                System.out.println("[DIAGNÓSTICO] resolvedConflictSet tiene " + resolvedConflictSet.size() + " rutas:");
+                for (EstablishedRoute current : resolvedConflictSet) {
+                    System.out.println("[DIAGNÓSTICO]   CURRENT: " + current.getFrom() + "->" + current.getTo() + 
+                                     " [ID:" + Integer.toHexString(System.identityHashCode(current)) + "]" +
+                                     " path:" + pathToString(current.getPath()) +
+                                     " cores:" + current.getPathCores() +
+                                     " fs:" + current.getFsIndexBegin() + "-" + (current.getFsIndexBegin() + current.getFsWidth() - 1));
+                }
+            }
 
             log("FullRuteoMin (prof=" + profundidad + ") ID " + demandaBloqueada.getId()
                     + " | intento " + (intento + 1) + "/" + intentos
@@ -550,13 +579,35 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
                 if (nueva == null) {
                     // rollback simple de slots
+                    if (TRACE_ROLLBACK_VALIDATION) {
+                        rollbackCounter++;
+                        System.out.println("\n[ROLLBACK-" + rollbackCounter + "] ===== INICIO ROLLBACK SIMPLE =====");
+                        System.out.println("[ROLLBACK-" + rollbackCounter + "] Demanda: " + demandaBloqueada.getSource() + "->" + demandaBloqueada.getDestination() + 
+                                           " slots=" + demandaBloqueada.getFs());
+                        System.out.println("[ROLLBACK-" + rollbackCounter + "] Intento: " + (intento + 1) + "/" + profundidad);
+                        System.out.println("[ROLLBACK-" + rollbackCounter + "] Causa: No se pudo asignar la demanda en la ventana");
+                        System.out.println("[ROLLBACK-" + rollbackCounter + "] Rutas desasignadas: " + desasignadas.size());
+                        for (EstablishedRoute r : desasignadas) {
+                            EstablishedRoute backup = backups.get(r);
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "]   - " + r.getFrom() + "->" + r.getTo() + 
+                                             " [ID:" + Integer.toHexString(System.identityHashCode(r)) + "]" +
+                                             " backup_cores:" + (backup != null ? backup.getPathCores() : "null") +
+                                             " backup_fs:" + (backup != null ? backup.getFsIndexBegin() + "-" + 
+                                             (backup.getFsIndexBegin() + backup.getFsWidth() - 1) : "null"));
+                        }
+                    }
+                    
                     for (EstablishedRoute r : desasignadas) {
                         restoreSingleRoute(graph, backups.get(r));
                     }
                     
                     // ========== VALIDACIÓN: Verificar rollback (INVARIANTE 4) ==========
                     if (ENABLE_VALIDATION) {
-                        validateRollbackState(graph, backups, establishedRoutes, globalReport);
+                        validateRollbackState(graph, backups, establishedRoutes, globalReport, rollbackCounter);
+                    }
+                    
+                    if (TRACE_ROLLBACK_VALIDATION) {
+                        System.out.println("[ROLLBACK-" + rollbackCounter + "] ===== FIN ROLLBACK SIMPLE =====");
                     }
                     
                     log("Intento " + (intento + 1)
@@ -589,6 +640,34 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ rollback total de este intento
+                        if (TRACE_ROLLBACK_VALIDATION) {
+                            rollbackCounter++;
+                            System.out.println("\n[ROLLBACK-" + rollbackCounter + "] ===== INICIO ROLLBACK COMPLETO =====");
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] Demanda: " + demandaBloqueada.getSource() + "->" + demandaBloqueada.getDestination() + 
+                                               " slots=" + demandaBloqueada.getFs());
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] Intento: " + (intento + 1) + "/" + profundidad);
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] Causa: Falló reinserción de ruta " + r.getFrom() + "->" + r.getTo());
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] Nueva ruta asignada: " + nueva.getFrom() + "->" + nueva.getTo() + 
+                                             " cores:" + nueva.getPathCores() + " fs:" + nueva.getFsIndexBegin() + "-" + 
+                                             (nueva.getFsIndexBegin() + nueva.getFsWidth() - 1));
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] Rutas en resolvedConflictSet: " + resolvedConflictSet.size());
+                            for (EstablishedRoute rc : resolvedConflictSet) {
+                                EstablishedRoute backupRc = backups.get(rc);
+                                System.out.println("[ROLLBACK-" + rollbackCounter + "]   - " + rc.getFrom() + "->" + rc.getTo() + 
+                                                 " [ID:" + Integer.toHexString(System.identityHashCode(rc)) + "]" +
+                                                 " backup_cores:" + (backupRc != null ? backupRc.getPathCores() : "null") +
+                                                 " backup_fs:" + (backupRc != null ? backupRc.getFsIndexBegin() + "-" + 
+                                                 (backupRc.getFsIndexBegin() + backupRc.getFsWidth() - 1) : "null"));
+                            }
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] Rutas ya reinsertadas (moved): " + moved.size());
+                            for (Map.Entry<EstablishedRoute, EstablishedRoute> me : moved.entrySet()) {
+                                System.out.println("[ROLLBACK-" + rollbackCounter + "]   - " + me.getKey().getFrom() + "->" + me.getKey().getTo() + 
+                                                 " -> " + me.getValue().getFrom() + "->" + me.getValue().getTo() +
+                                                 " cores:" + me.getValue().getPathCores() + " fs:" + me.getValue().getFsIndexBegin() + "-" +
+                                                 (me.getValue().getFsIndexBegin() + me.getValue().getFsWidth() - 1));
+                            }
+                        }
+                        
                         captureSlotStateBefore(graph, "ROLLBACK-START", 
                                               "Falló reinserción de ruta " + r.getFrom() + "->" + r.getTo() +
                                               ", iniciando rollback completo");
@@ -629,7 +708,11 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
                         // ========== VALIDACIÓN: Verificar rollback completo (INVARIANTE 4) ==========
                         if (ENABLE_VALIDATION) {
-                            validateRollbackState(graph, backups, establishedRoutes, globalReport);
+                            validateRollbackState(graph, backups, establishedRoutes, globalReport, rollbackCounter);
+                        }
+                        
+                        if (TRACE_ROLLBACK_VALIDATION) {
+                            System.out.println("[ROLLBACK-" + rollbackCounter + "] ===== FIN ROLLBACK COMPLETO =====");
                         }
 
                         log("Intento " + (intento + 1) + ": rollback por fallo al reinsertar.");
@@ -1038,11 +1121,35 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             int from = staleRoute.getFrom();
             int to = staleRoute.getTo();
             
+            // === DIAGNÓSTICO: Mostrar TODAS las instancias con mismo from->to ===
+            if (TRACE_ROLLBACK_VALIDATION) {
+                System.out.println("\n[DIAGNÓSTICO] Buscando instancia actual para " + from + "->" + to + " [ID stale:" + Integer.toHexString(System.identityHashCode(staleRoute)) + "]");
+                int count = 0;
+                for (EstablishedRoute r : currentRoutes) {
+                    if (r.getFrom() == from && r.getTo() == to) {
+                        count++;
+                        System.out.println("[DIAGNÓSTICO]   Candidato #" + count + ": [ID:" + Integer.toHexString(System.identityHashCode(r)) + "]" +
+                                         " path:" + pathToString(r.getPath()) +
+                                         " cores:" + r.getPathCores() +
+                                         " fs:" + r.getFsIndexBegin() + "-" + (r.getFsIndexBegin() + r.getFsWidth() - 1));
+                    }
+                }
+                if (count == 0) {
+                    System.out.println("[DIAGNÓSTICO]   ❌ No hay ninguna instancia con " + from + "->" + to + " en establishedRoutes");
+                } else if (count > 1) {
+                    System.out.println("[DIAGNÓSTICO]   ⚠️ MÚLTIPLES instancias (" + count + ") con " + from + "->" + to);
+                }
+            }
+            
             // Buscar la versión actual en establishedRoutes
             EstablishedRoute currentRoute = null;
             for (EstablishedRoute r : currentRoutes) {
                 if (r.getFrom() == from && r.getTo() == to) {
                     currentRoute = r;
+                    if (TRACE_ROLLBACK_VALIDATION) {
+                        System.out.println("[DIAGNÓSTICO]   ✅ SELECCIONADA: [ID:" + Integer.toHexString(System.identityHashCode(currentRoute)) + "]" +
+                                         " path:" + pathToString(currentRoute.getPath()));
+                    }
                     break;
                 }
             }
@@ -1065,9 +1172,41 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
    =========================================================== */
     private static Map<EstablishedRoute, EstablishedRoute> createBackups(List<EstablishedRoute> routes) {
         Map<EstablishedRoute, EstablishedRoute> backups = new HashMap<>();
+        
+        if (TRACE_ROLLBACK_VALIDATION) {
+            System.out.println("\n[DIAGNÓSTICO] ===== ANTES de createBackups() / copyRoute() =====");
+        }
+        
         for (EstablishedRoute route : routes) {
             if (route != null) {
+                // === DIAGNÓSTICO: Estado ANTES de copyRoute ===
+                if (TRACE_ROLLBACK_VALIDATION) {
+                    System.out.println("[DIAGNÓSTICO] Creando backup para: " + route.getFrom() + "->" + route.getTo() + 
+                                     " [ID:" + Integer.toHexString(System.identityHashCode(route)) + "]" +
+                                     " path:" + pathToString(route.getPath()) +
+                                     " cores:" + route.getPathCores() +
+                                     " fs:" + route.getFsIndexBegin() + "-" + (route.getFsIndexBegin() + route.getFsWidth() - 1));
+                }
+                
                 EstablishedRoute backup = copyRoute(route);
+                
+                // === DIAGNÓSTICO: Estado DESPUÉS de copyRoute ===
+                if (TRACE_ROLLBACK_VALIDATION && backup != null) {
+                    System.out.println("[DIAGNÓSTICO]   Backup creado: [ID:" + Integer.toHexString(System.identityHashCode(backup)) + "]" +
+                                     " path:" + pathToString(backup.getPath()) +
+                                     " cores:" + backup.getPathCores() +
+                                     " fs:" + backup.getFsIndexBegin() + "-" + (backup.getFsIndexBegin() + backup.getFsWidth() - 1));
+                    
+                    // Verificar si copyRoute modificó el path
+                    String originalPath = pathToString(route.getPath());
+                    String backupPath = pathToString(backup.getPath());
+                    if (!originalPath.equals(backupPath)) {
+                        System.out.println("[DIAGNÓSTICO]   ⚠️⚠️⚠️ CAMBIÓ EL PATH EN copyRoute() ⚠️⚠️⚠️");
+                        System.out.println("[DIAGNÓSTICO]   Original: " + originalPath);
+                        System.out.println("[DIAGNÓSTICO]   Backup:   " + backupPath);
+                    }
+                }
+                
                 if (backup != null) {
                     backups.put(route, backup);
                 } else {
@@ -1466,10 +1605,18 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
     private static void validateRollbackState(Graph<Integer, Link> graph,
             Map<EstablishedRoute, EstablishedRoute> backups,
             List<EstablishedRoute> establishedRoutes,
-            ValidationReport report) {
+            ValidationReport report,
+            int rollbackId) {
+        
+        int violationCount = 0;
+        Set<String> violatedRoutes = new LinkedHashSet<>();
         
         for (Map.Entry<EstablishedRoute, EstablishedRoute> entry : backups.entrySet()) {
+            EstablishedRoute original = entry.getKey();
             EstablishedRoute backup = entry.getValue();
+            
+            boolean routeHasViolation = false;
+            List<String> routeViolations = new ArrayList<>();
             
             // Verificar que los recursos en el grafo coinciden con el backup
             for (int li = 0; li < backup.getPath().size(); li++) {
@@ -1488,14 +1635,55 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                             
                             if (backupSlot.isFree() != graphSlot.isFree() || 
                                 backupSlot.getLifetime() != graphSlot.getLifetime()) {
-                                report.fail("Rollback incompleto en link " + backupLink.getFrom() + "-" + 
-                                    backupLink.getTo() + " core " + core + " fs " + fs);
+                                violationCount++;
+                                routeHasViolation = true;
+                                String violation = "link " + backupLink.getFrom() + "-" + 
+                                    backupLink.getTo() + " core " + core + " fs " + fs;
+                                routeViolations.add(violation);
+                                report.fail("Rollback incompleto en " + violation);
+                                
+                                if (TRACE_ROLLBACK_VALIDATION) {
+                                    System.out.println("[ROLLBACK-" + rollbackId + "] ❌ VIOLACIÓN: link " + 
+                                                     backupLink.getFrom() + "-" + backupLink.getTo() + 
+                                                     " core " + core + " fs " + fs);
+                                    System.out.println("[ROLLBACK-" + rollbackId + "]    Ruta: " + original.getFrom() + "->" + original.getTo() +
+                                                     " [ID:" + Integer.toHexString(System.identityHashCode(original)) + "]");
+                                    System.out.println("[ROLLBACK-" + rollbackId + "]    Backup esperado: free=" + backupSlot.isFree() + 
+                                                     " lifetime=" + backupSlot.getLifetime());
+                                    System.out.println("[ROLLBACK-" + rollbackId + "]    Grafo actual:    free=" + graphSlot.isFree() + 
+                                                     " lifetime=" + graphSlot.getLifetime());
+                                    System.out.println("[ROLLBACK-" + rollbackId + "]    Backup path:  " + pathToString(backup.getPath()));
+                                    System.out.println("[ROLLBACK-" + rollbackId + "]    Backup cores: " + backup.getPathCores());
+                                    System.out.println("[ROLLBACK-" + rollbackId + "]    Backup fs:    " + backup.getFsIndexBegin() + "-" + 
+                                                     (backup.getFsIndexBegin() + backup.getFsWidth() - 1));
+                                }
                             }
                         }
                     }
                 }
             }
+            
+            if (routeHasViolation) {
+                violatedRoutes.add(original.getFrom() + "->" + original.getTo());
+            }
         }
+        
+        if (TRACE_ROLLBACK_VALIDATION && violationCount > 0) {
+            System.out.println("[ROLLBACK-" + rollbackId + "] RESUMEN: " + violationCount + 
+                             " violaciones en " + violatedRoutes.size() + " rutas: " + violatedRoutes);
+        }
+    }
+    
+    private static String pathToString(List<Link> path) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < path.size(); i++) {
+            if (i > 0) sb.append("-");
+            sb.append(path.get(i).getFrom());
+            if (i == path.size() - 1) {
+                sb.append("-").append(path.get(i).getTo());
+            }
+        }
+        return sb.toString();
     }
     
     // INVARIANTE 6: Validar estructura pathCores FSDM
