@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.*;
+import java.util.stream.Collectors;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.KShortestSimplePaths;
@@ -43,6 +44,9 @@ public class Defragmenter {
     private static final int TRACE_LINK_FROM = 8;
     private static final int TRACE_LINK_TO = 11;
     private static final int TRACE_CORE = 2;
+    private static final boolean TRACE_REINSERTION_FLOW = true;  // Rastrear flujo de reinserción
+    private static int reinsertionTraceCounter = 0;  // Limitar a primer caso
+    private static boolean TRACE_INTENTO_ASSIGN = true;  // Trace detallado de intentarAsignarConCoresFijos
     private static final int TRACE_FS = 211;
     private static int traceEventCounter = 0;
     
@@ -189,21 +193,24 @@ public class Defragmenter {
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ Falló reinserción de esta ruta: rollback completo de este intento
+                        // FASE 1: Desasignar nueva ruta
                         Utils.deallocateFs(graph, nueva, crosstalkPerUnitLength); // quitar demanda nueva
                         removeRouteFromList(establishedRoutes, nueva);
 
+                        // FASE 2: Desasignar TODAS las rutas reinsertadas
+                        for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
+                            EstablishedRoute reinsertada = e.getValue();
+                            Utils.deallocateFs(graph, reinsertada, crosstalkPerUnitLength);
+                        }
+
+                        // FASE 3: Restaurar TODOS los backups (no pueden ser sobrescritos)
                         // Restaurar la que falló
                         restoreSingleRoute(graph, backup);
 
-                        // Rollback de todas las ya reinsertadas (moved)
+                        // Restaurar rutas reinsertadas
                         for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
                             EstablishedRoute original = e.getKey();
-                            EstablishedRoute reinsertada = e.getValue();
-                            Utils.deallocateFs(graph, reinsertada, crosstalkPerUnitLength);
                             restoreSingleRoute(graph, backups.get(original));
-
-                            // ====== NUEVO: volver a dejar la original en establishedRoutes ======
-                            replaceRouteInList(establishedRoutes, reinsertada, original);
                         }
 
                         // Restaurar las restantes desasignadas que aún no se reinsertaron
@@ -211,6 +218,13 @@ public class Defragmenter {
                             if (!moved.containsKey(rRest) && rRest != r) {
                                 restoreSingleRoute(graph, backups.get(rRest));
                             }
+                        }
+
+                        // FASE 4: Actualizar establishedRoutes
+                        for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
+                            EstablishedRoute original = e.getKey();
+                            EstablishedRoute reinsertada = e.getValue();
+                            replaceRouteInList(establishedRoutes, reinsertada, original);
                         }
 
                         log("Intento " + (intento + 1) + ": rollback por fallo al reinsertar conflictos.");
@@ -375,20 +389,24 @@ public class Defragmenter {
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ Falló reinserción de esta ruta: rollback completo de este intento
+                        // FASE 1: Desasignar nueva ruta
                         Utils.deallocateFs(graph, nueva, crosstalkPerUnitLength); // quitar demanda nueva
                         removeRouteFromList(establishedRoutes, nueva);
 
+                        // FASE 2: Desasignar TODAS las rutas reinsertadas
+                        for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
+                            EstablishedRoute reinsertada = e.getValue();
+                            Utils.deallocateFs(graph, reinsertada, crosstalkPerUnitLength);
+                        }
+
+                        // FASE 3: Restaurar TODOS los backups (no pueden ser sobrescritos)
                         // Restaurar la que falló
                         restoreSingleRoute(graph, backup);
 
-                        // Rollback de todas las ya reinsertadas (moved)
+                        // Restaurar rutas reinsertadas
                         for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
                             EstablishedRoute original = e.getKey();
-                            EstablishedRoute reinsertada = e.getValue();
-                            Utils.deallocateFs(graph, reinsertada, crosstalkPerUnitLength);
                             restoreSingleRoute(graph, backups.get(original));
-                            // ====== NUEVO: volver a dejar la original en establishedRoutes ======
-                            replaceRouteInList(establishedRoutes, reinsertada, original);
                         }
 
                         // Restaurar las restantes desasignadas que aún no se reinsertaron
@@ -396,6 +414,13 @@ public class Defragmenter {
                             if (!moved.containsKey(rRest) && rRest != r) {
                                 restoreSingleRoute(graph, backups.get(rRest));
                             }
+                        }
+
+                        // FASE 4: Actualizar establishedRoutes
+                        for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
+                            EstablishedRoute original = e.getKey();
+                            EstablishedRoute reinsertada = e.getValue();
+                            replaceRouteInList(establishedRoutes, reinsertada, original);
                         }
 
                         log("Intento " + (intento + 1) + ": rollback por fallo al reinsertar conflictos.");
@@ -464,6 +489,9 @@ public class Defragmenter {
             Input input,
             double crosstalkPerUnitLenght, int profundidad) {
 
+        // Resetear contador de trace para capturar el primer caso de DFfullRuteoMin
+        reinsertionTraceCounter = 0;
+        
         int capacity = input.getCapacity();
         int cores = input.getCores();
         BigDecimal maxCrosstalk = input.getMaxCrosstalk();
@@ -478,24 +506,30 @@ public class Defragmenter {
         // 2) Guards de tamaños usando el primer enlace del path
         int fs = demandaBloqueada.getFs();
         int slotsSize = pathLinks.get(0).getCores().get(0).getFrequencySlots().size();
-        int maxStart = slotsSize - fs;
-        if (fs <= 0 || maxStart < 0) {
+        
+        // FSDM: Calcular width real que se usará en la asignación
+        int fibrasPorGrupo = (input.getFibrasPorGrupo() != null) ? input.getFibrasPorGrupo() : 1;
+        int widthReal = (int) Math.ceil((double) fs / fibrasPorGrupo);
+        
+        int maxStart = slotsSize - widthReal;
+        if (widthReal <= 0 || maxStart < 0) {
             log("No se pudo evaluar ninguna ventana FS (fs/slots inválidos).");
             return false;
         }
 
-// 3) Construir candidatos (min-suma por ventana)
+// 3) Construir candidatos (min-suma por ventana) usando widthReal
 
 List<VentanaMinSum> candidatos = new ArrayList<>();
 
         for (int start = 0; start <= maxStart; start++) {
-            VentanaMinSum cand = evaluarVentanaMinSuma(pathLinks, start, fs, cores, establishedRoutes);
-            if (cand != null) {
+            VentanaMinSum cand = evaluarVentanaMinSuma(pathLinks, start, widthReal, cores, input.getGrupos(), establishedRoutes);
+            // FILTRO: Solo considerar ventanas con al menos 1 conflicto (para desfragmentar)
+            if (cand != null && cand.sumaMinConflictos > 0) {
                 candidatos.add(cand);
             }
         }
         if (candidatos.isEmpty()) {
-            log("No se pudo evaluar ninguna ventana FS (min-suma).");
+            log("No se pudo evaluar ninguna ventana FS con conflictos para desfragmentar.");
             return false;
         }
 
@@ -504,6 +538,18 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             int cmp = Integer.compare(a.sumaMinConflictos, b.sumaMinConflictos);
             return (cmp != 0) ? cmp : Integer.compare(a.start, b.start);
         });
+
+        // DEBUG: Ver candidatos ordenados
+        if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+            System.out.println("\n[DEBUG-CANDIDATOS] Total de candidatos: " + candidatos.size());
+            for (int i = 0; i < Math.min(5, candidatos.size()); i++) {
+                VentanaMinSum c = candidatos.get(i);
+                System.out.println("[DEBUG-CANDIDATOS] #" + i + ": start=" + c.start + 
+                                 ", suma=" + c.sumaMinConflictos + 
+                                 ", #conflictos=" + c.conflictSet.size() +
+                                 ", cores=" + c.coresPorLink);
+            }
+        }
 
 // 4) Intentar top-k según profundidad
         int intentos = Math.min(profundidad, candidatos.size());
@@ -514,8 +560,15 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             List<Integer> bestCoresPorLink = best.coresPorLink;
             Set<EstablishedRoute> bestConflictSet = best.conflictSet;
             
+            if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                System.out.println("\n[DEBUG-INTENTO] ===== Intento #" + (intento+1) + "/" + intentos + " =====");
+                System.out.println("[DEBUG-INTENTO] start=" + bestStart + ", suma=" + best.sumaMinConflictos);
+                System.out.println("[DEBUG-INTENTO] bestConflictSet.size=" + bestConflictSet.size());
+                System.out.println("[DEBUG-INTENTO] bestCoresPorLink=" + bestCoresPorLink);
+            }
+            
             // === DIAGNÓSTICO: Estado ANTES de resolveCurrentReferences ===
-            if (TRACE_ROLLBACK_VALIDATION) {
+            if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
                 System.out.println("\n[DIAGNÓSTICO] ===== ANTES de resolveCurrentReferences() =====");
                 System.out.println("[DIAGNÓSTICO] bestConflictSet tiene " + bestConflictSet.size() + " rutas:");
                 for (EstablishedRoute old : bestConflictSet) {
@@ -527,11 +580,11 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 }
             }
             
-            // FIX: Resolver referencias obsoletas a instancias actuales
-            Set<EstablishedRoute> resolvedConflictSet = resolveCurrentReferences(bestConflictSet, establishedRoutes);
+            // FIX: Resolver referencias obsoletas a instancias actuales que se solapen con la ventana
+            Set<EstablishedRoute> resolvedConflictSet = resolveCurrentReferences(bestConflictSet, establishedRoutes, bestStart, widthReal);
             
             // === DIAGNÓSTICO: Estado DESPUÉS de resolveCurrentReferences ===
-            if (TRACE_ROLLBACK_VALIDATION) {
+            if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
                 System.out.println("\n[DIAGNÓSTICO] ===== DESPUÉS de resolveCurrentReferences() =====");
                 System.out.println("[DIAGNÓSTICO] resolvedConflictSet tiene " + resolvedConflictSet.size() + " rutas:");
                 for (EstablishedRoute current : resolvedConflictSet) {
@@ -560,8 +613,16 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
             try {
                 // 4.1) Desasignar conflictivas
+                if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                    System.out.println("\n[TRACE-DESASIGNAR] Desasignando " + resolvedConflictSet.size() + " rutas conflictivas:");
+                    for (EstablishedRoute r : resolvedConflictSet) {
+                        System.out.println("[TRACE-DESASIGNAR]   - Ruta " + r.getFrom() + "->" + r.getTo() + 
+                                         " cores:" + r.getPathCores() + " fs:[" + r.getFsIndexBegin() + "-" +
+                                         (r.getFsIndexBegin() + r.getFsWidth() - 1) + "]");
+                    }
+                }
+                
                 for (EstablishedRoute r : resolvedConflictSet) {
-                    
                     captureSlotStateBefore(graph, "DEALLOCATE-CONFLICT", 
                                           "Desasignando ruta conflictiva " + r.getFrom() + "->" + r.getTo() +
                                           " cores:" + r.getPathCores() + " fs:" + r.getFsIndexBegin() + "-" +
@@ -573,9 +634,35 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 }
 
                 // 4.2) Insertar la demanda bloqueada
+                if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                    System.out.println("\n[TRACE-ASIGNAR-NUEVA] Intentando asignar demanda bloqueada:");
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   ALGORITMO: DFfullRuteoMin");
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   Demanda: " + demandaBloqueada.getSource() + "->" + demandaBloqueada.getDestination() + " fs=" + demandaBloqueada.getFs());
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   start=" + bestStart + ", widthReal=" + widthReal);
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   pathLinks.size=" + (pathLinks != null ? pathLinks.size() : "null"));
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   bestCoresPorLink: " + bestCoresPorLink);
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   fibrasPorGrupo: " + input.getFibrasPorGrupo());
+                    System.out.println("[TRACE-ASIGNAR-NUEVA]   grupos: " + input.getGrupos());
+                    // Activar trace detallado
+                    TRACE_INTENTO_ASSIGN = true;
+                }
+                
                 EstablishedRoute nueva = intentarAsignarConCoresFijos(
                         demandaBloqueada, pathLinks, bestCoresPorLink, bestStart,
                         graph, maxCrosstalk, crosstalkPerUnitLenght, cores, input);
+                
+                if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                    TRACE_INTENTO_ASSIGN = false;
+                    if (nueva == null) {
+                        System.out.println("[TRACE-ASIGNAR-NUEVA] RESULTADO: FALLO (null)");
+                    } else {
+                        System.out.println("[TRACE-ASIGNAR-NUEVA] RESULTADO: ÉXITO");
+                        System.out.println("[TRACE-ASIGNAR-NUEVA]   Nueva ruta: " + nueva.getFrom() + "->" + nueva.getTo());
+                        System.out.println("[TRACE-ASIGNAR-NUEVA]   path: " + pathToString(nueva.getPath()));
+                        System.out.println("[TRACE-ASIGNAR-NUEVA]   pathCores: " + nueva.getPathCores());
+                        System.out.println("[TRACE-ASIGNAR-NUEVA]   fs: " + nueva.getFsIndexBegin() + "-" + (nueva.getFsIndexBegin() + nueva.getFsWidth() - 1));
+                    }
+                }
 
                 if (nueva == null) {
                     // rollback simple de slots
@@ -630,13 +717,74 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
                 // 4.3) Reinsertar conflictivas
                 boolean falloReinsercion = false;
+                
+                if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0 && resolvedConflictSet.size() > 0) {
+                    System.out.println("\n" + "=".repeat(80));
+                    System.out.println("[TRACE-REINSERTION] ===== FLUJO DE REINSERCIÓN =====");
+                    System.out.println("[TRACE-REINSERTION] Demanda bloqueada: " + demandaBloqueada.getSource() + "->" + demandaBloqueada.getDestination() + 
+                                       " slots=" + demandaBloqueada.getFs());
+                    System.out.println("[TRACE-REINSERTION] Nueva ruta asignada: " + nueva.getFrom() + "->" + nueva.getTo());
+                    System.out.println("[TRACE-REINSERTION]   path: " + pathToString(nueva.getPath()));
+                    System.out.println("[TRACE-REINSERTION]   pathCores: " + nueva.getPathCores());
+                    System.out.println("[TRACE-REINSERTION]   fs: " + nueva.getFsIndexBegin() + "-" + (nueva.getFsIndexBegin() + nueva.getFsWidth() - 1));
+                    System.out.println("[TRACE-REINSERTION]   originalDemandFs: " + nueva.getOriginalDemandFs());
+                    System.out.println("[TRACE-REINSERTION]   fibrasPorGrupo: " + nueva.getFibrasPorGrupo());
+                    System.out.println("[TRACE-REINSERTION] Rutas a reinsertar: " + resolvedConflictSet.size());
+                    System.out.println("=".repeat(80) + "\n");
+                }
+                
+                int routeIndex = 0;
 
                 for (EstablishedRoute r : resolvedConflictSet) {
                     EstablishedRoute backup = backups.get(r);
                     Demand d = demandFromRoute(r);
+                    
+                    if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                        routeIndex++;
+                        System.out.println("\n[TRACE-REINSERTION] --- Ruta conflictiva #" + routeIndex + " de " + resolvedConflictSet.size() + " ---");
+                        System.out.println("[TRACE-REINSERTION] ORIGINAL: " + r.getFrom() + "->" + r.getTo());
+                        System.out.println("[TRACE-REINSERTION]   path original: " + pathToString(backup.getPath()));
+                        System.out.println("[TRACE-REINSERTION]   pathCores original: " + backup.getPathCores());
+                        System.out.println("[TRACE-REINSERTION]   fs original: " + backup.getFsIndexBegin() + "-" + 
+                                         (backup.getFsIndexBegin() + backup.getFsWidth() - 1));
+                        System.out.println("[TRACE-REINSERTION]   originalDemandFs: " + backup.getOriginalDemandFs());
+                        System.out.println("[TRACE-REINSERTION]   fibrasPorGrupo: " + backup.getFibrasPorGrupo());
+                        System.out.println("[TRACE-REINSERTION] Intentando rerutear con ruteoCoreMultiple...");
+                        System.out.println("[TRACE-REINSERTION]   Demand creada: source=" + d.getSource() + 
+                                         " dest=" + d.getDestination() + " fs=" + d.getFs() + " lifetime=" + d.getLifetime());
+                        
+                        // Activar trace detallado en Algorithms para este intento
+                        Algorithms.TRACE_RUTEO_DETAIL = true;
+                    }
 
                     EstablishedRoute re = Algorithms.ruteoCoreMultiple(
                             graph, d, input, crosstalkPerUnitLenght);
+                    
+                    // Desactivar trace detallado
+                    if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                        Algorithms.TRACE_RUTEO_DETAIL = false;
+                    }
+                    
+                    if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                        if (re == null) {
+                            System.out.println("[TRACE-REINSERTION] ❌ RESULTADO: ruteoCoreMultiple retornó NULL");
+                            System.out.println("[TRACE-REINSERTION]    Motivo: No se encontró path con FS disponibles");
+                            reinsertionTraceCounter++;  // Marcar que ya trazamos un caso
+                        } else if (re.getFsIndexBegin() == -1) {
+                            System.out.println("[TRACE-REINSERTION] ❌ RESULTADO: ruteoCoreMultiple retornó fsIndexBegin=-1");
+                            System.out.println("[TRACE-REINSERTION]    Motivo: Path encontrado pero sin FS asignables");
+                            reinsertionTraceCounter++;
+                        } else {
+                            System.out.println("[TRACE-REINSERTION] ✅ RESULTADO: ruteoCoreMultiple tuvo ÉXITO");
+                            System.out.println("[TRACE-REINSERTION]   NUEVA: " + re.getFrom() + "->" + re.getTo());
+                            System.out.println("[TRACE-REINSERTION]   path nueva: " + pathToString(re.getPath()));
+                            System.out.println("[TRACE-REINSERTION]   pathCores nueva: " + re.getPathCores());
+                            System.out.println("[TRACE-REINSERTION]   fs nueva: " + re.getFsIndexBegin() + "-" + 
+                                             (re.getFsIndexBegin() + re.getFsWidth() - 1));
+                            System.out.println("[TRACE-REINSERTION]   originalDemandFs: " + re.getOriginalDemandFs());
+                            System.out.println("[TRACE-REINSERTION]   fibrasPorGrupo: " + re.getFibrasPorGrupo());
+                        }
+                    }
 
                     if (re == null || re.getFsIndexBegin() == -1) {
                         // ❌ rollback total de este intento
@@ -672,27 +820,40 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                                               "Falló reinserción de ruta " + r.getFrom() + "->" + r.getTo() +
                                               ", iniciando rollback completo");
                         
+                        // FASE 1: Desasignar nueva ruta
                         Utils.deallocateFs(graph, nueva, crosstalkPerUnitLenght);
                         captureSlotStateAfter(graph, "ROLLBACK-DEALLOCATE-NUEVA",
                                              "Desasignó nueva ruta");
                         removeRouteFromList(establishedRoutes, nueva);
 
-                        // Restaurar la que falló y reponer en lista
-                        restoreSingleRoute(graph, backup);
-
-                        // Deshacer re-ruteadas previas
+                        // FASE 2: Desasignar TODAS las rutas reinsertadas
                         for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
-                            EstablishedRoute original = e.getKey();
                             EstablishedRoute reinsertada = e.getValue();
-                            captureSlotStateBefore(graph, "ROLLBACK-UNDO-MOVED",
-                                                  "Deshaciendo ruta " + reinsertada.getFrom() + "->" + reinsertada.getTo() +
+                            captureSlotStateBefore(graph, "ROLLBACK-DEALLOCATE-MOVED",
+                                                  "Desasignando ruta reinsertada " + reinsertada.getFrom() + "->" + reinsertada.getTo() +
                                                   " cores:" + reinsertada.getPathCores() + " fs:" + reinsertada.getFsIndexBegin() + "-" +
                                                   (reinsertada.getFsIndexBegin() + reinsertada.getFsWidth() - 1));
                             Utils.deallocateFs(graph, reinsertada, crosstalkPerUnitLenght);
                             captureSlotStateAfter(graph, "ROLLBACK-DEALLOCATE-MOVED",
                                                  "Desasignó ruta reinsertada");
+                        }
+
+                        // FASE 3: Restaurar TODOS los backups (no pueden ser sobrescritos)
+                        // Restaurar la que falló
+                        captureSlotStateBefore(graph, "ROLLBACK-RESTORE-FAILED",
+                                              "Restaurando ruta que falló " + r.getFrom() + "->" + r.getTo());
+                        restoreSingleRoute(graph, backup);
+                        captureSlotStateAfter(graph, "ROLLBACK-RESTORE-FAILED",
+                                             "Restauró ruta que falló");
+
+                        // Restaurar rutas reinsertadas
+                        for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
+                            EstablishedRoute original = e.getKey();
+                            captureSlotStateBefore(graph, "ROLLBACK-RESTORE-MOVED",
+                                                  "Restaurando ruta original " + original.getFrom() + "->" + original.getTo());
                             restoreSingleRoute(graph, backups.get(original));
-                            replaceRouteInList(establishedRoutes, reinsertada, original);
+                            captureSlotStateAfter(graph, "ROLLBACK-RESTORE-MOVED",
+                                                 "Restauró ruta original");
                         }
 
                         // Restaurar las restantes aún no reinsertadas
@@ -701,7 +862,16 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                                 captureSlotStateBefore(graph, "ROLLBACK-RESTORE-REMAINING",
                                                       "Restaurando ruta no reinsertada " + rRest.getFrom() + "->" + rRest.getTo());
                                 restoreSingleRoute(graph, backups.get(rRest));
+                                captureSlotStateAfter(graph, "ROLLBACK-RESTORE-REMAINING",
+                                                     "Restauró ruta no reinsertada");
                             }
+                        }
+
+                        // FASE 4: Actualizar establishedRoutes
+                        for (Map.Entry<EstablishedRoute, EstablishedRoute> e : moved.entrySet()) {
+                            EstablishedRoute original = e.getKey();
+                            EstablishedRoute reinsertada = e.getValue();
+                            replaceRouteInList(establishedRoutes, reinsertada, original);
                         }
                         
                         captureSlotStateAfter(graph, "ROLLBACK-END", "Rollback completo");
@@ -899,7 +1069,9 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         List<Link> path = route.getPath();
         for (int i = 0; i < path.size(); i++) {
             Link li = path.get(i);
-            if (li.getFrom() == from && li.getTo() == to) {
+            // Buscar dirección directa O inversa (cores compartidos)
+            if ((li.getFrom() == from && li.getTo() == to) ||
+                (li.getFrom() == to && li.getTo() == from)) {
                 return i;
             }
         }
@@ -924,12 +1096,25 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         int fibrasPorGrupo = (input.getFibrasPorGrupo() != null) ? input.getFibrasPorGrupo() : 1;
         int width = (int) Math.ceil((double) originalFs / fibrasPorGrupo);
         
+        if (TRACE_INTENTO_ASSIGN) {
+            System.out.println("[TRACE-INTENTO-ASSIGN] intentarAsignarConCoresFijos iniciando:");
+            System.out.println("[TRACE-INTENTO-ASSIGN]   originalFs=" + originalFs + ", fibrasPorGrupo=" + fibrasPorGrupo + " -> width=" + width);
+        }
+        
         if (pathLinks == null || pathLinks.isEmpty()) {
+            if (TRACE_INTENTO_ASSIGN) {
+                System.out.println("[TRACE-INTENTO-ASSIGN] FALLO: pathLinks null o vacío");
+            }
             return null;
         }
 
         int slotsSize = pathLinks.get(0).getCores().get(0).getFrequencySlots().size();
         if (width <= 0 || start < 0 || start + width > slotsSize) {
+            if (TRACE_INTENTO_ASSIGN) {
+                System.out.println("[TRACE-INTENTO-ASSIGN] FALLO: width/start fuera de rango");
+                System.out.println("[TRACE-INTENTO-ASSIGN]   width=" + width + ", start=" + start + ", slotsSize=" + slotsSize);
+                System.out.println("[TRACE-INTENTO-ASSIGN]   Condición: start+width=" + (start+width) + " > slotsSize=" + slotsSize);
+            }
             return null;
         }
 
@@ -939,6 +1124,10 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         List<Integer> grupoSeleccionado = null;
         if (fibrasPorGrupo > 1 && input.getGrupos() != null && !input.getGrupos().isEmpty()) {
             int primerCore = pathCores.get(0);
+            if (TRACE_INTENTO_ASSIGN) {
+                System.out.println("[TRACE-INTENTO-ASSIGN] Buscando grupo FSDM para primerCore=" + primerCore);
+                System.out.println("[TRACE-INTENTO-ASSIGN]   Grupos disponibles: " + input.getGrupos());
+            }
             for (List<Integer> grupo : input.getGrupos()) {
                 if (grupo.contains(primerCore)) {
                     grupoSeleccionado = grupo;
@@ -946,7 +1135,13 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 }
             }
             if (grupoSeleccionado == null) {
+                if (TRACE_INTENTO_ASSIGN) {
+                    System.out.println("[TRACE-INTENTO-ASSIGN] FALLO: No se encontró grupo válido para primerCore=" + primerCore);
+                }
                 return null; // No se encontró grupo válido para el core seleccionado
+            }
+            if (TRACE_INTENTO_ASSIGN) {
+                System.out.println("[TRACE-INTENTO-ASSIGN] Grupo seleccionado: " + grupoSeleccionado);
             }
         }
 
@@ -958,12 +1153,21 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         
         if (fibrasPorGrupo > 1 && grupoSeleccionado != null) {
             // FSDM: Verificar TODOS los cores del grupo para cada enlace
+            if (TRACE_INTENTO_ASSIGN) {
+                System.out.println("[TRACE-INTENTO-ASSIGN] Modo FSDM: verificando TODOS los cores del grupo en todos los enlaces");
+            }
             for (int li = 0; li < pathLinks.size(); li++) {
                 Link link = pathLinks.get(li);
                 
                 // Verificar disponibilidad en TODOS los cores del grupo
                 for (Integer coreDelGrupo : grupoSeleccionado) {
                     if (!isBlockAvailable(link, coreDelGrupo, start, width, maxCrosstalk, crosstalkFSList, crosstalkPerUnitLength)) {
+                        if (TRACE_INTENTO_ASSIGN) {
+                            System.out.println("[TRACE-INTENTO-ASSIGN] FALLO: isBlockAvailable=false");
+                            System.out.println("[TRACE-INTENTO-ASSIGN]   link: " + link.getFrom() + "-" + link.getTo() + " (enlace " + li + "/" + pathLinks.size() + ")");
+                            System.out.println("[TRACE-INTENTO-ASSIGN]   core: " + coreDelGrupo);
+                            System.out.println("[TRACE-INTENTO-ASSIGN]   rango: fs[" + start + "-" + (start+width-1) + "]");
+                        }
                         return null; // Rechazar si algún core del grupo está ocupado
                     }
                     updateCrosstalkFSList(crosstalkFSList, coreDelGrupo, link, crosstalkPerUnitLength, width);
@@ -971,11 +1175,20 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             }
         } else {
             // SDM original o fibrasPorGrupo=1: verificar solo el core seleccionado
+            if (TRACE_INTENTO_ASSIGN) {
+                System.out.println("[TRACE-INTENTO-ASSIGN] Modo SDM: verificando solo el core seleccionado por la heurística");
+            }
             for (int li = 0; li < pathLinks.size(); li++) {
                 Link link = pathLinks.get(li);
                 int core = pathCores.get(li);
                 
                 if (!isBlockAvailable(link, core, start, width, maxCrosstalk, crosstalkFSList, crosstalkPerUnitLength)) {
+                    if (TRACE_INTENTO_ASSIGN) {
+                        System.out.println("[TRACE-INTENTO-ASSIGN] FALLO: isBlockAvailable=false");
+                        System.out.println("[TRACE-INTENTO-ASSIGN]   link: " + link.getFrom() + "-" + link.getTo() + " (enlace " + li + "/" + pathLinks.size() + ")");
+                        System.out.println("[TRACE-INTENTO-ASSIGN]   core: " + core);
+                        System.out.println("[TRACE-INTENTO-ASSIGN]   rango: fs[" + start + "-" + (start+width-1) + "]");
+                    }
                     return null;
                 }
                 updateCrosstalkFSList(crosstalkFSList, core, link, crosstalkPerUnitLength, width);
@@ -1113,7 +1326,9 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
    =========================================================== */
     private static Set<EstablishedRoute> resolveCurrentReferences(
             Set<EstablishedRoute> staleSet,
-            List<EstablishedRoute> currentRoutes) {
+            List<EstablishedRoute> currentRoutes,
+            int windowStart,
+            int windowWidth) {
         
         Set<EstablishedRoute> resolved = new LinkedHashSet<>();
         
@@ -1141,16 +1356,27 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 }
             }
             
-            // Buscar la versión actual en establishedRoutes
+            // Buscar la versión actual que se solapa con la ventana FS
+            int wStart = windowStart;
+            int wEnd = windowStart + windowWidth - 1;
+            
             EstablishedRoute currentRoute = null;
             for (EstablishedRoute r : currentRoutes) {
                 if (r.getFrom() == from && r.getTo() == to) {
-                    currentRoute = r;
-                    if (TRACE_ROLLBACK_VALIDATION) {
-                        System.out.println("[DIAGNÓSTICO]   ✅ SELECCIONADA: [ID:" + Integer.toHexString(System.identityHashCode(currentRoute)) + "]" +
-                                         " path:" + pathToString(currentRoute.getPath()));
+                    // Verificar solapamiento FS: [rStart, rEnd] ∩ [wStart, wEnd] ≠ ∅
+                    int rStart = r.getFsIndexBegin();
+                    int rEnd = rStart + r.getFsWidth() - 1;
+                    boolean overlap = (rStart <= wEnd) && (wStart <= rEnd);
+                    
+                    if (overlap) {
+                        currentRoute = r;
+                        if (TRACE_ROLLBACK_VALIDATION) {
+                            System.out.println("[DIAGNÓSTICO]   ✅ SELECCIONADA: [ID:" + Integer.toHexString(System.identityHashCode(currentRoute)) + "]" +
+                                             " path:" + pathToString(currentRoute.getPath()) +
+                                             " fs:[" + rStart + "-" + rEnd + "] ∩ ventana:[" + wStart + "-" + wEnd + "]");
+                        }
+                        break;
                     }
-                    break;
                 }
             }
             
@@ -1225,9 +1451,27 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         List<FrequencySlot> fsSlots = link.getCores().get(core)
                 .getFrequencySlots().subList(start, start + width);
 
-        return Algorithms.isFSBlockFree(fsSlots)
-                && Algorithms.isFsBlockCrosstalkFree(fsSlots, maxCrosstalk, crosstalkFSList)
-                && Algorithms.isNextToCrosstalkFreeCores(link, maxCrosstalk, core, start, width, crosstalkPerUnitLength);
+        // DIAGNÓSTICO: Evaluar cada condición por separado
+        boolean isFree = Algorithms.isFSBlockFree(fsSlots);
+        boolean isCrosstalkFree = Algorithms.isFsBlockCrosstalkFree(fsSlots, maxCrosstalk, crosstalkFSList);
+        boolean isNextToCrosstalkFree = Algorithms.isNextToCrosstalkFreeCores(link, maxCrosstalk, core, start, width, crosstalkPerUnitLength);
+        
+        boolean resultado = isFree && isCrosstalkFree && isNextToCrosstalkFree;
+        
+        // Si falla, mostrar diagnóstico detallado
+        if (!resultado && TRACE_INTENTO_ASSIGN) {
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable] ===== DESGLOSE DE CONDICIONES =====");
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   Link: " + link.getFrom() + "->" + link.getTo());
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   Core: " + core);
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   FS range: [" + start + "-" + (start + width - 1) + "]");
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   isFSBlockFree = " + isFree);
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   isFsBlockCrosstalkFree = " + isCrosstalkFree);
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   isNextToCrosstalkFreeCores = " + isNextToCrosstalkFree);
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable]   RESULTADO FINAL = " + resultado);
+            System.out.println("[DIAGNÓSTICO-isBlockAvailable] =======================================");
+        }
+        
+        return resultado;
     }
 
     private static void updateCrosstalkFSList(List<BigDecimal> crosstalkFSList,
@@ -1419,12 +1663,146 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
     }
 
     /* -----------------------------------------------------------
-   Evalúa una ventana: para CADA enlace del camino, prueba TODOS
-   los cores [0..cores-1], cuenta conflictos; elige el core con
-   MENOS conflictos (tie: menor coreIndex; opcional: mayor BFR).
-   Devuelve la suma de esos mínimos y la unión de las conflictivas.
+   FSDM-AWARE: Evalúa una ventana probando cada GRUPO FSDM como
+   unidad de decisión. En FSDM, TODOS los cores del grupo se usan
+   simultáneamente en todos los enlaces, por lo que se cuentan
+   conflictos de TODOS los cores del grupo en TODOS los enlaces.
+   Retorna el grupo que minimiza la suma total de conflictos.
+   
+   Si grupos == null o vacío: Comportamiento SDM original (todos los cores).
 ----------------------------------------------------------- */
     private static VentanaMinSum evaluarVentanaMinSuma(
+            List<Link> pathLinks,
+            int start, int width,
+            int cores,
+            List<List<Integer>> grupos,
+            List<EstablishedRoute> establishedRoutes) {
+
+        // DEBUG: Verificar si grupos está llegando
+        if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+            System.out.println("[DEBUG-VENTANA] evaluarVentanaMinSuma llamado:");
+            System.out.println("[DEBUG-VENTANA]   grupos: " + grupos);
+            System.out.println("[DEBUG-VENTANA]   grupos == null? " + (grupos == null));
+            System.out.println("[DEBUG-VENTANA]   grupos.isEmpty()? " + (grupos != null && grupos.isEmpty()));
+        }
+
+        // Modo SDM (sin grupos FSDM): comportamiento original
+        if (grupos == null || grupos.isEmpty()) {
+            if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                System.out.println("[DEBUG-VENTANA] Usando modo SDM (sin grupos)");
+            }
+            return evaluarVentanaMinSumaSDM(pathLinks, start, width, cores, establishedRoutes);
+        }
+
+        if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+            System.out.println("[DEBUG-VENTANA] Usando modo FSDM con grupos: " + grupos);
+        }
+
+        // Modo FSDM: Probar cada grupo como unidad de decisión
+        VentanaMinSum mejorCandidato = null;
+        int mejorSuma = Integer.MAX_VALUE;
+
+        for (List<Integer> grupo : grupos) {
+            Set<EstablishedRoute> unionConflicts = new HashSet<>();
+            int suma = 0;
+
+            // DIAGNÓSTICO: Imprimir matriz de conflictos por enlace (solo primer intento)
+            boolean diagnosticarPorEnlace = (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0 && mejorSuma == Integer.MAX_VALUE);
+            if (diagnosticarPorEnlace) {
+                System.out.println("\n[DIAGNÓSTICO-MATRIZ] ===== CONFLICTOS POR ENLACE =====");
+                System.out.println("[DIAGNÓSTICO-MATRIZ] Ventana: start=" + start + ", width=" + width + ", rango FS:[" + start + "-" + (start + width - 1) + "]");
+                System.out.println("[DIAGNÓSTICO-MATRIZ] Grupo evaluado: " + grupo);
+                System.out.println("[DIAGNÓSTICO-MATRIZ] Path tiene " + pathLinks.size() + " enlaces:");
+                for (int i = 0; i < pathLinks.size(); i++) {
+                    Link link = pathLinks.get(i);
+                    System.out.println("[DIAGNÓSTICO-MATRIZ]   Enlace " + i + ": " + link.getFrom() + "->" + link.getTo());
+                }
+            }
+
+            // En FSDM, TODOS los cores del grupo se usan en TODOS los enlaces
+            // Por lo tanto, contamos conflictos de TODOS los cores del grupo
+            int enlaceIdx = 0;
+            for (Link link : pathLinks) {
+                // Para este enlace, obtener rutas que usan CUALQUIER core del grupo
+                Set<EstablishedRoute> conflictosEnEsteLink = new HashSet<>();
+                
+                if (diagnosticarPorEnlace) {
+                    System.out.println("\n[DIAGNÓSTICO-MATRIZ] Enlace " + enlaceIdx + " (" + link.getFrom() + "->" + link.getTo() + "):");
+                }
+                
+                for (int c : grupo) {
+                    Set<EstablishedRoute> conf = conflictosEnLinkCoreVentana(
+                            link, c, start, width, establishedRoutes);
+                    
+                    if (diagnosticarPorEnlace && !conf.isEmpty()) {
+                        System.out.println("[DIAGNÓSTICO-MATRIZ]   Core " + c + " → " + conf.size() + " conflictos:");
+                        for (EstablishedRoute r : conf) {
+                            System.out.println("[DIAGNÓSTICO-MATRIZ]     - " + r.getFrom() + "->" + r.getTo() + 
+                                " fs:[" + r.getFsIndexBegin() + "-" + (r.getFsIndexBegin() + r.getFsWidth() - 1) + "]" +
+                                " path:" + r.getPath().stream().map(l -> l.getFrom() + "-" + l.getTo()).collect(Collectors.joining(",")));
+                        }
+                    }
+                    
+                    conflictosEnEsteLink.addAll(conf);
+                }
+                
+                if (diagnosticarPorEnlace) {
+                    System.out.println("[DIAGNÓSTICO-MATRIZ]   Total rutas únicas en este enlace: " + conflictosEnEsteLink.size());
+                }
+                
+                // Contar solo rutas únicas en este enlace
+                suma += conflictosEnEsteLink.size();
+                unionConflicts.addAll(conflictosEnEsteLink);
+                enlaceIdx++;
+            }
+            
+            if (diagnosticarPorEnlace) {
+                System.out.println("\n[DIAGNÓSTICO-MATRIZ] RESUMEN:");
+                System.out.println("[DIAGNÓSTICO-MATRIZ]   suma (ocurrencias por enlace): " + suma);
+                System.out.println("[DIAGNÓSTICO-MATRIZ]   |unionConflicts| (rutas únicas): " + unionConflicts.size());
+                System.out.println("[DIAGNÓSTICO-MATRIZ]   unionConflicts:");
+                for (EstablishedRoute r : unionConflicts) {
+                    System.out.println("[DIAGNÓSTICO-MATRIZ]     - " + r.getFrom() + "->" + r.getTo() + 
+                        " fs:[" + r.getFsIndexBegin() + "-" + (r.getFsIndexBegin() + r.getFsWidth() - 1) + "]" +
+                        " path:" + r.getPath().stream().map(l -> l.getFrom() + "-" + l.getTo()).collect(Collectors.joining(",")));
+                }
+                System.out.println("[DIAGNÓSTICO-MATRIZ] ==========================================\n");
+            }
+
+            // Elegir el grupo con menos conflictos totales
+            if (suma < mejorSuma) {
+                mejorSuma = suma;
+                
+                // En FSDM, todos los enlaces usan el primer core del grupo
+                // (el patrón real [2,3,2,3,...] lo construye intentarAsignarConCoresFijos)
+                List<Integer> elegidos = new ArrayList<>(pathLinks.size());
+                int primerCore = grupo.get(0);
+                for (int i = 0; i < pathLinks.size(); i++) {
+                    elegidos.add(primerCore);
+                }
+                
+                if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+                    System.out.println("[DEBUG-VENTANA] Grupo " + grupo + " -> suma=" + suma + ", elegidos=" + elegidos);
+                    System.out.println("[DEBUG-VENTANA]   #conflictos únicos: " + unionConflicts.size());
+                }
+                
+                mejorCandidato = new VentanaMinSum(start, elegidos, unionConflicts, suma);
+            }
+        }
+
+        if (TRACE_REINSERTION_FLOW && reinsertionTraceCounter == 0) {
+            System.out.println("[DEBUG-VENTANA] Mejor candidato: " + 
+                (mejorCandidato != null ? mejorCandidato.coresPorLink : "null"));
+        }
+
+        return mejorCandidato;
+    }
+
+    /* -----------------------------------------------------------
+   Versión SDM original: evalúa ventana probando TODOS los cores
+   individualmente por enlace (sin restricción de grupo).
+----------------------------------------------------------- */
+    private static VentanaMinSum evaluarVentanaMinSumaSDM(
             List<Link> pathLinks,
             int start, int width,
             int cores,
@@ -1437,7 +1815,7 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
         for (Link link : pathLinks) {
             Set<EstablishedRoute> mejorConf = null;
             int mejorCore = -1;
-            double mejorBfr = -1.0; // BFR del core actualmente elegido para este enlace
+            double mejorBfr = -1.0;
 
             for (int c = 0; c < cores; c++) {
                 Set<EstablishedRoute> conf = conflictosEnLinkCoreVentana(
@@ -1449,17 +1827,13 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 boolean esMejor = false;
 
                 if (mejorConf == null) {
-                    // primer candidato
                     esMejor = true;
                 } else if (candSize < mejorConf.size()) {
-                    // menos conflictos gana
                     esMejor = true;
                 } else if (candSize == mejorConf.size()) {
-                    // desempate 1: mayor BFR
                     if (candBfr > mejorBfr) {
                         esMejor = true;
                     } else if (candBfr == mejorBfr && c < mejorCore) {
-                        // desempate 2: índice de core más bajo
                         esMejor = true;
                     }
                 }
@@ -1472,7 +1846,6 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
             }
 
             if (mejorCore < 0) {
-                // seguridad: no se pudo elegir core en este enlace
                 return null;
             }
 
@@ -1535,7 +1908,13 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
 
     private static void removeRouteFromList(List<EstablishedRoute> list, EstablishedRoute r) {
         if (r != null) {
+            // ========== FORENSIC AUDIT: Detectar fallo en remove por equals() (BUG-3) ==========
+            int sizeBefore = list.size();
             list.remove(r);
+            int sizeAfter = list.size();
+            
+            ForensicLogger.logRemoveAttempt(list, r, sizeBefore, sizeAfter);
+            // ========== FIN FORENSIC AUDIT ==========
         }
     }
 

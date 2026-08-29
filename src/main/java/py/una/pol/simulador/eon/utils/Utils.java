@@ -192,25 +192,27 @@ public class Utils {
                 Integer core = establishedRoute.getPathCores().get(linkIdx * fibrasPorEnlace + f);
                 
                 for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
-                    // ========== DIAGNÓSTICO: Detectar sobrescritura de slots ocupados ==========
-                    if (ENABLE_ASSIGNFS_OVERWRITE_DETECTION) {
-                        boolean wasOccupied = !link.getCores().get(core).getFrequencySlots().get(i).isFree();
-                        int previousLifetime = link.getCores().get(core).getFrequencySlots().get(i).getLifetime();
-                        
-                        if (wasOccupied) {
-                            System.out.println("\n⚠️ ALERTA ASSIGNFS: Sobrescribiendo slot ocupado");
-                            System.out.println("  Ruta que intenta asignar: " + establishedRoute.getFrom() + "->" + establishedRoute.getTo() 
-                                + " | lifetime: " + establishedRoute.getLifetime());
-                            System.out.println("  Link: " + link.getFrom() + "-" + link.getTo() 
-                                + " | Core: " + core 
-                                + " | FS: " + i);
-                            System.out.println("  Estado ANTERIOR: free=ocupado, lifetime=" + previousLifetime);
-                            System.out.println("  Estado que se va a sobrescribir: free=ocupado -> libre (INCORRECTO), lifetime=" + previousLifetime + " -> " + establishedRoute.getLifetime());
-                            System.out.println("  Rango de asignación: fs[" + establishedRoute.getFsIndexBegin() + "-" + (establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth() - 1) + "]");
-                            System.out.println("  Cores usados por esta ruta: " + establishedRoute.getPathCores());
-                        }
+                    // ========== FORENSIC AUDIT: Detectar sobrescritura de slots ocupados (BUG-2) ==========
+                    boolean wasOccupied = !link.getCores().get(core).getFrequencySlots().get(i).isFree();
+                    int previousLifetime = link.getCores().get(core).getFrequencySlots().get(i).getLifetime();
+                    
+                    // Registrar en log forense si se intenta sobrescribir
+                    ForensicLogger.logAssignAttempt(establishedRoute, link, core, i, wasOccupied, previousLifetime, null);
+                    
+                    // Mantener diagnóstico existente para consola
+                    if (ENABLE_ASSIGNFS_OVERWRITE_DETECTION && wasOccupied) {
+                        System.out.println("\n⚠️ ALERTA ASSIGNFS: Sobrescribiendo slot ocupado");
+                        System.out.println("  Ruta que intenta asignar: " + establishedRoute.getFrom() + "->" + establishedRoute.getTo() 
+                            + " | lifetime: " + establishedRoute.getLifetime());
+                        System.out.println("  Link: " + link.getFrom() + "-" + link.getTo() 
+                            + " | Core: " + core 
+                            + " | FS: " + i);
+                        System.out.println("  Estado ANTERIOR: free=ocupado, lifetime=" + previousLifetime);
+                        System.out.println("  Estado que se va a sobrescribir: free=ocupado -> libre (INCORRECTO), lifetime=" + previousLifetime + " -> " + establishedRoute.getLifetime());
+                        System.out.println("  Rango de asignación: fs[" + establishedRoute.getFsIndexBegin() + "-" + (establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth() - 1) + "]");
+                        System.out.println("  Cores usados por esta ruta: " + establishedRoute.getPathCores());
                     }
-                    // ========== FIN DIAGNÓSTICO ==========
+                    // ========== FIN FORENSIC AUDIT ==========
                     
                     link.getCores().get(core).getFrequencySlots().get(i).setFree(false);
                     link.getCores().get(core).getFrequencySlots().get(i).setLifetime(establishedRoute.getLifetime());
@@ -261,6 +263,11 @@ public class Utils {
                 Integer core = establishedRoute.getPathCores().get(linkIdx * fibrasPorEnlace + f);
                 
                 for (int i = establishedRoute.getFsIndexBegin(); i < establishedRoute.getFsIndexBegin() + establishedRoute.getFsWidth(); i++) {
+                    // ========== FORENSIC AUDIT: Detectar liberación de slots libres (BUG-1) ==========
+                    boolean wasOccupied = !link.getCores().get(core).getFrequencySlots().get(i).isFree();
+                    ForensicLogger.logDeallocateAttempt(establishedRoute, link, core, i, wasOccupied);
+                    // ========== FIN FORENSIC AUDIT ==========
+                    
                     link.getCores().get(core).getFrequencySlots().get(i).setFree(true);
                     link.getCores().get(core).getFrequencySlots().get(i).setLifetime(0);
                 }

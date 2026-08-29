@@ -1,0 +1,271 @@
+﻿
+  diagnostico_rollback4.txt:2382:Tiempo: 374
+  diagnostico_rollback4.txt:2383:Tiempo: 375
+  diagnostico_rollback4.txt:2384:COMIENZA A DESFRAGMENTAR CON DFbFRmax 
+PROFUNDIDAD 1: 
+  diagnostico_rollback4.txt:2385:[Defragmenter] Iniciando desfragmentaci¾n 
+para demanda ID: 1906 | intento 1 de 1 | start=298 | rutas conflictivas: 5
+  diagnostico_rollback4.txt:2386:[Defragmenter] Desfragmentaci¾n exitosa para 
+demanda ID: 1906 en intento 1.
+  diagnostico_rollback4.txt:2387:
+  diagnostico_rollback4.txt:2388:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2389:╔xitos: 1
+  diagnostico_rollback4.txt:2390:Fallos: 0
+  diagnostico_rollback4.txt:2391:Rutas reconfiguradas (acumuladas): 5
+  diagnostico_rollback4.txt:2392:===============================
+  diagnostico_rollback4.txt:2393:
+  diagnostico_rollback4.txt:2394:
+  diagnostico_rollback4.txt:2395:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2396:╔xitos: 0
+  diagnostico_rollback4.txt:2397:Fallos: 0
+  diagnostico_rollback4.txt:2398:Rutas reconfiguradas (acumuladas): 0
+  diagnostico_rollback4.txt:2399:===============================
+  diagnostico_rollback4.txt:2400:
+  diagnostico_rollback4.txt:2401:Tiempo: 376
+  diagnostico_rollback4.txt:2402:COMIENZA A DESFRAGMENTAR CON DFbFRmax 
+PROFUNDIDAD 1: 
+  diagnostico_rollback4.txt:2403:[Defragmenter] Iniciando desfragmentaci¾n 
+para demanda ID: 1913 | intento 1 de 1 | start=123 | rutas conflictivas: 6
+  diagnostico_rollback4.txt:2404:[Defragmenter] Desfragmentaci¾n exitosa para 
+demanda ID: 1913 en intento 1.
+  diagnostico_rollback4.txt:2405:
+  diagnostico_rollback4.txt:2406:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2407:╔xitos: 2
+  diagnostico_rollback4.txt:2408:Fallos: 0
+  diagnostico_rollback4.txt:2409:Rutas reconfiguradas (acumuladas): 11
+  diagnostico_rollback4.txt:2410:===============================
+  diagnostico_rollback4.txt:2411:
+  diagnostico_rollback4.txt:2412:
+  diagnostico_rollback4.txt:2413:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2414:╔xitos: 0
+  diagnostico_rollback4.txt:2415:Fallos: 0
+  diagnostico_rollback4.txt:2416:Rutas reconfiguradas (acumuladas): 0
+  diagnostico_rollback4.txt:2417:===============================
+  diagnostico_rollback4.txt:2418:
+  diagnostico_rollback4.txt:2419:Tiempo: 377
+  diagnostico_rollback4.txt:2420:Tiempo: 378
+  diagnostico_rollback4.txt:2421:COMIENZA A DESFRAGMENTAR CON DFbFRmax 
+PROFUNDIDAD 1: 
+  diagnostico_rollback4.txt:2422:[Defragmenter] Iniciando desfragmentaci¾n 
+para demanda ID: 1926 | intento 1 de 1 | start=14 | rutas conflictivas: 3
+  diagnostico_rollback4.txt:2423:
+  diagnostico_rollback4.txt:2424:==============================================
+==================================
+  diagnostico_rollback4.txt:2425:? DIAGNËSTICO DE ROLLBACK #1
+  diagnostico_rollback4.txt:2426:Contexto: DFbFRmax: Rollback completo - fallo 
+al reinsertar conflictos
+  diagnostico_rollback4.txt:2427:==============================================
+==================================
+  diagnostico_rollback4.txt:2428:
+  diagnostico_rollback4.txt:2429:? DIFERENCIAS DETECTADAS ENTRE ANTES del 
+intento 1 Y DESPU╔S del rollback
+  diagnostico_rollback4.txt:2430:==============================================
+==================================
+  diagnostico_rollback4.txt:2431:
+  diagnostico_rollback4.txt:2432:? DIFERENCIAS EN RECURSOS NO CONFLICTIVOS 
+(CORRUPCIËN COLATERAL):
+  diagnostico_rollback4.txt:2433:  15-21/core0/fs16 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2434:  15-21/core0/fs16 | lifetime: 622 ? 0
+  diagnostico_rollback4.txt:2435:  15-21/core1/fs16 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2436:  15-21/core1/fs16 | lifetime: 622 ? 0
+  diagnostico_rollback4.txt:2437:
+  diagnostico_rollback4.txt:2438:  TOTAL RECURSOS NO CONFLICTIVOS ALTERADOS: 4
+  diagnostico_rollback4.txt:2439:==============================================
+==================================
+  diagnostico_rollback4.txt:2440:
+  diagnostico_rollback4.txt:2441:
+> diagnostico_rollback4.txt:2442:? EVIDENCIA DE BUG: El rollback alter¾ 
+recursos NO pertenecientes al conflictSet
+  diagnostico_rollback4.txt:2443:
+  diagnostico_rollback4.txt:2444:? AN┴LISIS DETALLADO DE CORRUPCIËN:
+  diagnostico_rollback4.txt:2445:Rutas en conflictSet: 3
+  diagnostico_rollback4.txt:2446:  - Ruta 21->6: fsBegin=14, fsWidth=2, 
+fibrasPorGrupo=2, pathCores=[0, 1, 0, 1, 0, 1, 0, 1]
+  diagnostico_rollback4.txt:2447:    Path: 15-21 -> 11-15 -> 8-11 -> 6-8
+  diagnostico_rollback4.txt:2448:  - Ruta 8->22: fsBegin=15, fsWidth=2, 
+fibrasPorGrupo=2, pathCores=[2, 3, 2, 3, 2, 3, 2, 3]
+  diagnostico_rollback4.txt:2449:    Path: 8-11 -> 11-15 -> 15-21 -> 21-22
+  diagnostico_rollback4.txt:2450:  - Ruta 20->3: fsBegin=16, fsWidth=3, 
+fibrasPorGrupo=2, pathCores=[0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+  diagnostico_rollback4.txt:2451:    Path: 15-20 -> 11-15 -> 8-11 -> 6-8 -> 3-6
+  diagnostico_rollback4.txt:2452:
+  diagnostico_rollback4.txt:2609:
+  diagnostico_rollback4.txt:2610:[Defragmenter] Intento 1: rollback por fallo 
+al reinsertar conflictos.
+  diagnostico_rollback4.txt:2611:
+  diagnostico_rollback4.txt:2612:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2613:╔xitos: 4
+  diagnostico_rollback4.txt:2614:Fallos: 2
+  diagnostico_rollback4.txt:2615:Rutas reconfiguradas (acumuladas): 17
+  diagnostico_rollback4.txt:2616:===============================
+  diagnostico_rollback4.txt:2617:
+  diagnostico_rollback4.txt:2618:
+  diagnostico_rollback4.txt:2619:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2620:╔xitos: 0
+  diagnostico_rollback4.txt:2621:Fallos: 0
+  diagnostico_rollback4.txt:2622:Rutas reconfiguradas (acumuladas): 0
+  diagnostico_rollback4.txt:2623:===============================
+  diagnostico_rollback4.txt:2624:
+  diagnostico_rollback4.txt:2625:[Defragmenter] No fue posible desfragmentar 
+(fallo el mejor sets de conflicto).
+  diagnostico_rollback4.txt:2626:Tiempo: 399
+  diagnostico_rollback4.txt:2627:Tiempo: 400
+  diagnostico_rollback4.txt:2628:Tiempo: 401
+  diagnostico_rollback4.txt:2629:Tiempo: 402
+  diagnostico_rollback4.txt:2630:Tiempo: 403
+  diagnostico_rollback4.txt:2631:COMIENZA A DESFRAGMENTAR CON DFbFRmax 
+PROFUNDIDAD 1: 
+  diagnostico_rollback4.txt:2632:[Defragmenter] Iniciando desfragmentaci¾n 
+para demanda ID: 2078 | intento 1 de 1 | start=274 | rutas conflictivas: 4
+  diagnostico_rollback4.txt:2633:
+  diagnostico_rollback4.txt:2634:==============================================
+==================================
+  diagnostico_rollback4.txt:2635:? DIAGNËSTICO DE ROLLBACK #4
+  diagnostico_rollback4.txt:2636:Contexto: DFbFRmax: Rollback completo - fallo 
+al reinsertar conflictos
+  diagnostico_rollback4.txt:2637:==============================================
+==================================
+  diagnostico_rollback4.txt:2638:
+  diagnostico_rollback4.txt:2639:? DIFERENCIAS DETECTADAS ENTRE ANTES del 
+intento 1 Y DESPU╔S del rollback
+  diagnostico_rollback4.txt:2640:==============================================
+==================================
+  diagnostico_rollback4.txt:2641:
+  diagnostico_rollback4.txt:2642:? DIFERENCIAS EN RECURSOS NO CONFLICTIVOS 
+(CORRUPCIËN COLATERAL):
+  diagnostico_rollback4.txt:2643:  15-21/core0/fs277 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2644:  15-21/core0/fs277 | lifetime: 551 ? 0
+  diagnostico_rollback4.txt:2645:  15-21/core1/fs277 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2646:  15-21/core1/fs277 | lifetime: 551 ? 0
+  diagnostico_rollback4.txt:2647:  21-22/core0/fs274 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2648:  21-22/core0/fs274 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2649:  21-22/core0/fs275 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2650:  21-22/core0/fs275 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2651:  21-22/core0/fs276 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2652:  21-22/core0/fs276 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2653:  21-22/core0/fs277 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2654:  21-22/core0/fs277 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2655:  21-22/core1/fs274 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2656:  21-22/core1/fs274 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2657:  21-22/core1/fs275 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2658:  21-22/core1/fs275 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2659:  21-22/core1/fs276 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2660:  21-22/core1/fs276 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2661:  21-22/core1/fs277 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2662:  21-22/core1/fs277 | lifetime: 1613 ? 0
+  diagnostico_rollback4.txt:2663:  ... y 16 diferencias mßs
+  diagnostico_rollback4.txt:2664:
+  diagnostico_rollback4.txt:2665:  TOTAL RECURSOS NO CONFLICTIVOS ALTERADOS: 36
+  diagnostico_rollback4.txt:2666:==============================================
+==================================
+  diagnostico_rollback4.txt:2667:
+  diagnostico_rollback4.txt:2668:
+> diagnostico_rollback4.txt:2669:? EVIDENCIA DE BUG: El rollback alter¾ 
+recursos NO pertenecientes al conflictSet
+  diagnostico_rollback4.txt:2670:
+  diagnostico_rollback4.txt:2671:? AN┴LISIS DETALLADO DE CORRUPCIËN:
+  diagnostico_rollback4.txt:2672:Rutas en conflictSet: 4
+  diagnostico_rollback4.txt:2673:  - Ruta 16->6: fsBegin=278, fsWidth=4, 
+fibrasPorGrupo=2, pathCores=[0, 1, 0, 1, 0, 1, 0, 1]
+  diagnostico_rollback4.txt:2674:    Path: 12-16 -> 11-12 -> 8-11 -> 6-8
+  diagnostico_rollback4.txt:2675:  - Ruta 4->11: fsBegin=274, fsWidth=4, 
+fibrasPorGrupo=2, pathCores=[0, 1, 0, 1, 0, 1, 0, 1]
+  diagnostico_rollback4.txt:2676:    Path: 3-4 -> 3-6 -> 6-8 -> 8-11
+  diagnostico_rollback4.txt:2677:  - Ruta 22->3: fsBegin=275, fsWidth=4, 
+fibrasPorGrupo=2, pathCores=[2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3]
+  diagnostico_rollback4.txt:2678:    Path: 21-22 -> 15-21 -> 11-15 -> 8-11 -> 
+6-8 -> 3-6
+  diagnostico_rollback4.txt:2679:  - Ruta 22->6: fsBegin=279, fsWidth=3, 
+fibrasPorGrupo=2, pathCores=[2, 3, 2, 3, 2, 3, 2, 3, 2, 3]
+  diagnostico_rollback4.txt:2912:
+  diagnostico_rollback4.txt:2913:? El rollback restaur¾ perfectamente el 
+estado original
+  diagnostico_rollback4.txt:2914:
+  diagnostico_rollback4.txt:2915:Validaci¾n de establishedRoutes (ANTES):
+  diagnostico_rollback4.txt:2916:  Total rutas: 1481
+  diagnostico_rollback4.txt:2917:  Rutas vßlidas: 1481
+  diagnostico_rollback4.txt:2918:  Rutas ·nicas: 1481
+  diagnostico_rollback4.txt:2919:
+  diagnostico_rollback4.txt:2920:Validaci¾n de establishedRoutes (DESPU╔S):
+  diagnostico_rollback4.txt:2921:  Total rutas: 1481
+  diagnostico_rollback4.txt:2922:  Rutas vßlidas: 1481
+  diagnostico_rollback4.txt:2923:  Rutas ·nicas: 1481
+  diagnostico_rollback4.txt:2924:
+  diagnostico_rollback4.txt:2925:
+  diagnostico_rollback4.txt:2926:Comparaci¾n de establishedRoutes (DFbFRmax: 
+Rollback completo - fallo al reinsertar conflictos):
+  diagnostico_rollback4.txt:2927:  ? La lista contiene las mismas rutas
+  diagnostico_rollback4.txt:2928:
+  diagnostico_rollback4.txt:2929:==============================================
+==================================
+  diagnostico_rollback4.txt:2930:
+  diagnostico_rollback4.txt:2931:[Defragmenter] Intento 1: rollback por fallo 
+al reinsertar conflictos.
+  diagnostico_rollback4.txt:2932:
+  diagnostico_rollback4.txt:2933:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2934:╔xitos: 6
+  diagnostico_rollback4.txt:2935:Fallos: 7
+  diagnostico_rollback4.txt:2936:Rutas reconfiguradas (acumuladas): 25
+  diagnostico_rollback4.txt:2937:===============================
+  diagnostico_rollback4.txt:2938:
+  diagnostico_rollback4.txt:2939:
+  diagnostico_rollback4.txt:2940:=== MÚtricas del Desfragmentador ===
+  diagnostico_rollback4.txt:2941:╔xitos: 0
+  diagnostico_rollback4.txt:2942:Fallos: 0
+  diagnostico_rollback4.txt:2943:Rutas reconfiguradas (acumuladas): 0
+  diagnostico_rollback4.txt:2944:===============================
+  diagnostico_rollback4.txt:2945:
+  diagnostico_rollback4.txt:2946:[Defragmenter] No fue posible desfragmentar 
+(fallo el mejor sets de conflicto).
+  diagnostico_rollback4.txt:2947:Tiempo: 431
+  diagnostico_rollback4.txt:2948:Tiempo: 432
+  diagnostico_rollback4.txt:2949:Tiempo: 433
+  diagnostico_rollback4.txt:2950:Tiempo: 434
+  diagnostico_rollback4.txt:2951:COMIENZA A DESFRAGMENTAR CON DFbFRmax 
+PROFUNDIDAD 1: 
+  diagnostico_rollback4.txt:2952:[Defragmenter] Iniciando desfragmentaci¾n 
+para demanda ID: 2225 | intento 1 de 1 | start=297 | rutas conflictivas: 3
+  diagnostico_rollback4.txt:2953:
+  diagnostico_rollback4.txt:2954:==============================================
+==================================
+  diagnostico_rollback4.txt:2955:? DIAGNËSTICO DE ROLLBACK #9
+  diagnostico_rollback4.txt:2956:Contexto: DFbFRmax: Rollback completo - fallo 
+al reinsertar conflictos
+  diagnostico_rollback4.txt:2957:==============================================
+==================================
+  diagnostico_rollback4.txt:2958:
+  diagnostico_rollback4.txt:2959:? DIFERENCIAS DETECTADAS ENTRE ANTES del 
+intento 1 Y DESPU╔S del rollback
+  diagnostico_rollback4.txt:2960:==============================================
+==================================
+  diagnostico_rollback4.txt:2961:
+  diagnostico_rollback4.txt:2962:? DIFERENCIAS EN RECURSOS NO CONFLICTIVOS 
+(CORRUPCIËN COLATERAL):
+  diagnostico_rollback4.txt:2963:  11-15/core0/fs297 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2964:  11-15/core0/fs297 | lifetime: 246 ? 0
+  diagnostico_rollback4.txt:2965:  11-15/core1/fs297 | free: ocupado ? libre
+  diagnostico_rollback4.txt:2966:  11-15/core1/fs297 | lifetime: 246 ? 0
+  diagnostico_rollback4.txt:2967:
+  diagnostico_rollback4.txt:2968:  TOTAL RECURSOS NO CONFLICTIVOS ALTERADOS: 4
+  diagnostico_rollback4.txt:2969:==============================================
+==================================
+  diagnostico_rollback4.txt:2970:
+  diagnostico_rollback4.txt:2971:
+> diagnostico_rollback4.txt:2972:? EVIDENCIA DE BUG: El rollback alter¾ 
+recursos NO pertenecientes al conflictSet
+  diagnostico_rollback4.txt:2973:
+  diagnostico_rollback4.txt:2974:? AN┴LISIS DETALLADO DE CORRUPCIËN:
+  diagnostico_rollback4.txt:2975:Rutas en conflictSet: 3
+  diagnostico_rollback4.txt:2976:  - Ruta 15->9: fsBegin=298, fsWidth=3, 
+fibrasPorGrupo=2, pathCores=[2, 3, 2, 3, 2, 3]
+  diagnostico_rollback4.txt:2977:    Path: 11-15 -> 11-12 -> 9-12
+  diagnostico_rollback4.txt:2978:  - Ruta 22->3: fsBegin=298, fsWidth=4, 
+fibrasPorGrupo=2, pathCores=[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+  diagnostico_rollback4.txt:2979:    Path: 21-22 -> 15-21 -> 11-15 -> 8-11 -> 
+6-8 -> 3-6
+  diagnostico_rollback4.txt:2980:  - Ruta 11->4: fsBegin=297, fsWidth=1, 
+fibrasPorGrupo=2, pathCores=[0, 1, 0, 1, 0, 1, 0, 1]
+  diagnostico_rollback4.txt:2981:    Path: 8-11 -> 6-8 -> 3-6 -> 3-4
+  diagnostico_rollback4.txt:2982:
+
+
