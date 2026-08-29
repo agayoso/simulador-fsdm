@@ -36,9 +36,15 @@ import py.una.pol.simulador.eon.utils.CsvExporter;
 import py.una.pol.simulador.eon.utils.Defragmenter;
 import py.una.pol.simulador.eon.utils.MathUtils;
 import py.una.pol.simulador.eon.utils.Utils;
+import py.una.pol.simulador.eon.utils.ForensicLogger;
 
 
 public class SimulatorTest {
+    
+    // ========== FORENSIC AUDIT CONFIGURATION ==========
+    private static final boolean ENABLE_PERIODIC_VALIDATION = true;
+    private static final int VALIDATION_INTERVAL = 100; // Validar cada 100 ticks
+    // ==================================================
 
     /**
      * Configuración inicial para el simulador
@@ -161,6 +167,10 @@ public class SimulatorTest {
                             // Lista de rutas establecidas durante la simulación
                             List<EstablishedRoute> establishedRoutes = new ArrayList<>();
                             System.out.println("Inicializando simulación del RSA " + algorithm.label() + " para erlang: " + (erlang) + " para la topología " + topology.label() + " y H = " + crosstalkPerUnitLength.toString());
+                            System.out.println("[FORENSIC AUDIT] Validación periódica habilitada cada " + VALIDATION_INTERVAL + " ticks");
+                            
+                            int validationFailures = 0;
+                            
                             // Iteración de unidades de tiempo
                             for (int i = 0; i < input.getSimulationTime(); i++) {
                                 System.out.println("Tiempo: " + (i + 1));
@@ -210,7 +220,38 @@ public class SimulatorTest {
                                         ri--;
                                     }
                                 }
+                                
+                                // ========== FORENSIC AUDIT: Validación periódica de invariantes ==========
+                                if (ENABLE_PERIODIC_VALIDATION && i % VALIDATION_INTERVAL == 0) {
+                                    ForensicLogger.ValidationResult result = ForensicLogger.validateGlobalInvariants(graph, establishedRoutes, i);
+                                    if (!result.passed()) {
+                                        validationFailures++;
+                                        System.err.println("❌ [TICK " + i + "] Violaciones de invariantes detectadas:");
+                                        for (String violation : result.getViolations()) {
+                                            System.err.println("  " + violation);
+                                        }
+                                    }
+                                }
+                                // ========== FIN FORENSIC AUDIT ==========
                             }
+                            
+                            // Validación final
+                            if (ENABLE_PERIODIC_VALIDATION) {
+                                ForensicLogger.ValidationResult finalResult = ForensicLogger.validateGlobalInvariants(graph, establishedRoutes, input.getSimulationTime());
+                                if (!finalResult.passed()) {
+                                    System.err.println("❌ [FINAL] Violaciones de invariantes al terminar simulación:");
+                                    for (String violation : finalResult.getViolations()) {
+                                        System.err.println("  " + violation);
+                                    }
+                                } else {
+                                    System.out.println("✅ [FINAL] Todas las invariantes válidas al terminar Sin DF");
+                                }
+                                
+                                if (validationFailures > 0) {
+                                    System.err.println("⚠️ [Sin DF] Total de intervalos con violaciones: " + validationFailures);
+                                }
+                            }
+                            
                             System.out.println("TOTAL DE BLOQUEOS SIN DESFRAGMENTACION: " + bloqueos_sd);
                             System.out.println("Cantidad de demandas: " + demandaNro_sd);
                             System.out.println(System.lineSeparator());
@@ -691,9 +732,17 @@ public class SimulatorTest {
 
                 }
             }
+            
+            // ========== FORENSIC AUDIT: Finalizar y generar reporte ==========
+            ForensicLogger.finish();
+            // ================================================================
 
         } catch (IOException | IllegalArgumentException ex) {
             System.out.println(ex.getMessage());
+            
+            // ========== FORENSIC AUDIT: Finalizar incluso en caso de error ==========
+            ForensicLogger.finish();
+            // ========================================================================
         }
 
     }

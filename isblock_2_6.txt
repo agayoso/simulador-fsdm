@@ -1,0 +1,163 @@
+﻿
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/4)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-141]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/6)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[66-67]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[20-22]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/6)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-141]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-141]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-141]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/6)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[30-31]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-140]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-141]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[138-140]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[86-87]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/6)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[131-132]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[129-131]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/4)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[269-272]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/4)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[129-132]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/5)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[134-135]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/4)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[130-133]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/4)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[130-133]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/4)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[83-86]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+> [TRACE-INTENTO-ASSIGN]   link: 2-6 (enlace 0/3)
+  [TRACE-INTENTO-ASSIGN]   core: 0
+  [TRACE-INTENTO-ASSIGN]   rango: fs[130-133]
+  [Defragmenter] Intento 1: no se pudo asignar la demanda en la ventana/cores 
+elegidos.
+  
+  === MÚtricas del Desfragmentador ===
+  ╔xitos: 0
+
+

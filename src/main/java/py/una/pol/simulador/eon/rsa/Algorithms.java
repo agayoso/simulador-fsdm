@@ -28,6 +28,9 @@ public class Algorithms {
      * Si crosstalkPerUnitLength < FSDM_CROSSTALK_THRESHOLD, se desactiva toda la lógica de crosstalk.
      */
     private static final double FSDM_CROSSTALK_THRESHOLD = 1e-10;
+    
+    // Flag para activar trace detallado durante reinserción (controlada desde Defragmenter)
+    public static boolean TRACE_RUTEO_DETAIL = false;
 
     /**
      * Algoritmo RSA sin conmutación de núcleos
@@ -142,11 +145,25 @@ public class Algorithms {
         Integer fsIndexBegin = null;
         Integer selectedIndex = 0;
         
+        if (TRACE_RUTEO_DETAIL) {
+            System.out.println("[TRACE-RUTEO] Iniciando ruteoCoreMultiple:");
+            System.out.println("[TRACE-RUTEO]   demand.getFs()=" + demand.getFs() + 
+                             ", fibrasPorGrupo=" + input.getFibrasPorGrupo() + 
+                             " -> fsNecesariosPorFibra=" + fsNecesariosPorFibra);
+            System.out.println("[TRACE-RUTEO]   Grupos disponibles: " + input.getGrupos());
+        }
+        
         // FSDM: Probar cada grupo de fibras independientemente
         // Una demanda solo puede usar las fibras de UN grupo
+        int grupoIndex = 0;
         for (List<Integer> grupo : input.getGrupos()) {
+            grupoIndex++;
             if (!kspPlaced.isEmpty()) {
                 break; // Ya encontramos un grupo con espacio
+            }
+            
+            if (TRACE_RUTEO_DETAIL) {
+                System.out.println("[TRACE-RUTEO] Probando grupo #" + grupoIndex + ": " + grupo);
             }
             
             int k = 0;
@@ -154,9 +171,27 @@ public class Algorithms {
             KShortestSimplePaths<Integer, Link> kspFinder = new KShortestSimplePaths<>(graph);
             List<GraphPath<Integer, Link>> kspaths = kspFinder.getPaths(demand.getSource(), demand.getDestination(), 5);
             
+            if (TRACE_RUTEO_DETAIL) {
+                System.out.println("[TRACE-RUTEO]   KSP paths encontrados: " + kspaths.size());
+            }
+            
             while (k < kspaths.size() && kspaths.get(k) != null) {
                 fsIndexBegin = null;
                 GraphPath<Integer, Link> ksp = kspaths.get(k);
+                
+                if (TRACE_RUTEO_DETAIL && k == 0) {
+                    System.out.println("[TRACE-RUTEO]   Probando KSP #" + (k+1) + ", enlaces: " + ksp.getEdgeList().size());
+                    StringBuilder pathStr = new StringBuilder();
+                    for (Link link : ksp.getEdgeList()) {
+                        if (pathStr.length() > 0) pathStr.append("-");
+                        pathStr.append(link.getFrom());
+                    }
+                    if (!ksp.getEdgeList().isEmpty()) {
+                        pathStr.append("-").append(ksp.getEdgeList().get(ksp.getEdgeList().size()-1).getTo());
+                    }
+                    System.out.println("[TRACE-RUTEO]     Path: " + pathStr);
+                }
+                
                 // Recorremos los FS
                 for (int i = 0; i < capacity - demand.getFs(); i++) {
                     List<Integer> kspCores = new ArrayList<>();
@@ -166,13 +201,20 @@ public class Algorithms {
                     }
                     
                     boolean bloqueDisponibleEnTodosEnlaces = true;
+                    int linkIndexFail = -1;
+                    String motivoFallo = "";
                     
                     // FSDM: Verificar que el bloque esté disponible en TODAS las fibras del grupo en TODOS los enlaces
+                    int linkIndex = 0;
                     for (Link link : ksp.getEdgeList()) {
                         boolean enlaceOk = true;
                         
                         if (i >= capacity - fsNecesariosPorFibra) {
                             enlaceOk = false;
+                            if (linkIndexFail == -1) {
+                                linkIndexFail = linkIndex;
+                                motivoFallo = "FS fuera de rango (i=" + i + " >= capacity-fsNecesariosPorFibra=" + (capacity-fsNecesariosPorFibra) + ")";
+                            }
                         } else {
                             // Verificar TODAS las fibras del grupo en este enlace
                             for (int core : grupo) {
@@ -180,16 +222,28 @@ public class Algorithms {
                                 
                                 if (!isFSBlockFree(bloqueFS)) {
                                     enlaceOk = false;
+                                    if (linkIndexFail == -1) {
+                                        linkIndexFail = linkIndex;
+                                        motivoFallo = "FS ocupados (link " + link.getFrom() + "-" + link.getTo() + ", core " + core + ", fs " + i + "-" + (i+fsNecesariosPorFibra-1) + ")";
+                                    }
                                     break;
                                 }
                                 
                                 if (!isFsBlockCrosstalkFree(bloqueFS, maxCrosstalk, crosstalkFSList)) {
                                     enlaceOk = false;
+                                    if (linkIndexFail == -1) {
+                                        linkIndexFail = linkIndex;
+                                        motivoFallo = "Crosstalk excedido (link " + link.getFrom() + "-" + link.getTo() + ", core " + core + ")";
+                                    }
                                     break;
                                 }
                                 
                                 if (!isNextToCrosstalkFreeCores(link, maxCrosstalk, core, i, fsNecesariosPorFibra, crosstalkPerUnitLength)) {
                                     enlaceOk = false;
+                                    if (linkIndexFail == -1) {
+                                        linkIndexFail = linkIndex;
+                                        motivoFallo = "Crosstalk vecinos excedido (link " + link.getFrom() + "-" + link.getTo() + ", core " + core + ")";
+                                    }
                                     break;
                                 }
                             }
@@ -214,6 +268,7 @@ public class Algorithms {
                             bloqueDisponibleEnTodosEnlaces = false;
                             break; // Este grupo no funciona para esta posición FS
                         }
+                        linkIndex++;
                     }
                     
                     // Si TODOS los enlaces tienen el bloque disponible en TODAS las fibras del grupo
@@ -225,6 +280,15 @@ public class Algorithms {
                         k = kspaths.size(); // Salir del loop de paths
                         i = capacity; // Salir del loop de FS
                         break;
+                    } else if (TRACE_RUTEO_DETAIL && k == 0 && i == 0) {
+                        // Solo reportar fallo del primer intento de FS en el primer KSP
+                        if (!bloqueDisponibleEnTodosEnlaces) {
+                            System.out.println("[TRACE-RUTEO]     Fallo en fs=0: " + motivoFallo);
+                        } else if (kspCores.size() != ksp.getEdgeList().size() * grupo.size()) {
+                            System.out.println("[TRACE-RUTEO]     Fallo en fs=0: Tamaño incorrecto kspCores (" + 
+                                             kspCores.size() + " != " + (ksp.getEdgeList().size() * grupo.size()) + 
+                                             " = " + ksp.getEdgeList().size() + " enlaces * " + grupo.size() + " fibras/grupo)");
+                        }
                     }
                 }
                 k++;
