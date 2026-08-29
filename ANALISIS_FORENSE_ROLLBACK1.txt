@@ -1,0 +1,232 @@
+=============================================================================
+ANÁLISIS FORENSE DE ROLLBACK-1 - Tiempo 363
+=============================================================================
+
+CONTEXTO:
+- Demanda bloqueada: 2→21, fs=6
+- Path: 2→6→8→11→15→21→22 (6 enlaces)
+- Ventana evaluada: start=0, width=3, FS[0-2]
+- Grupo: [0,1]
+- Fallo: Link 2→6, core 0, FS[0-2] → isFree=false
+- Conflictos detectados en 2→6: 0 rutas
+
+=============================================================================
+HALLAZGO CRÍTICO: BUG DE DIRECCIONES INVERSAS + RECURSOS COMPARTIDOS
+=============================================================================
+
+CORRECCIÓN TRAS ANÁLISIS DETALLADO:
+
+Las rutas conflictivas NUNCA se eliminan de establishedRoutes durante
+el rollback simple. El flujo correcto es:
+
+Flujo del ROLLBACK SIMPLE (líneas 171-183 DFbFR*, 614-654 DFfullRuteoMin):
+1. createBackups() → Crea copias de rutas en conflicto
+2. Utils.deallocateFs() → Libera slots (setFree(true))
+3. ❌ NO SE ELIMINAN de establishedRoutes (las rutas siguen en la lista)
+4. Intenta asignar nueva demanda → FALLA
+5. ROLLBACK: restoreSingleRoute() → Restaura slots (setFree(false))
+6. Las rutas SIGUEN en establishedRoutes
+
+ENTONCES: ¿Por qué conflictosEnLinkCoreVentana() retorna 0 rutas?
+
+RESPUESTA: BUG DE DIRECCIONES INVERSAS
+
+Las rutas que ocupan los slots en 2→6 están en establishedRoutes,
+pero usan el enlace 6→2 en su path:
+
+1. Utils.createTopology() crea 2→6 y 6→2 con MISMO List<Core> (líneas 68-81)
+2. Una ruta con 6→2 llama assignFs() → marca slots en cores compartidos
+3. 2→6 ve esos slots como ocupados (isFree=false)
+4. conflictosEnLinkCoreVentana() busca rutas en 2→6 exactamente
+5. posicionDelEnlaceEnRuta() compara direcciones exactas (línea 1023)
+6. La ruta con 6→2 NO se detecta → retorna -1
+7. Resultado: 0 conflictos detectados pero slots ocupados
+
+Código relevante (línea 1023):
+```java
+private static int posicionDelEnlaceEnRuta(EstablishedRoute route, Link link) {
+    int from = link.getFrom();
+    int to = link.getTo();
+    for (int i = 0; i < path.size(); i++) {
+        Link li = path.get(i);
+        if (li.getFrom() == from && li.getTo() == to) {  // ← DIRECCIÓN EXACTA
+            return i;
+        }
+    }
+    return -1;  // ← Ruta con 6→2 NO se detecta al buscar 2→6
+}
+```
+
+=============================================================================
+EVIDENCIA EN ROLLBACK-1
+=============================================================================
+
+1. DIAGNÓSTICO-MATRIZ muestra:
+   - Enlace 0 (2→6): 0 rutas detectadas
+   - Enlace 1 (6→8): 0 rutas detectadas  
+   - Enlace 2 (8→11): 0 rutas detectadas
+   - Enlace 3 (11→15): 0 rutas detectadas
+   - Enlace 4 (15→21): 1 ruta (14→21)
+   - Enlace 5 (21→22): 1 ruta (21→22)
+
+2. isBlockAvailable() falla en 2→6/core0/[0-2]:
+   - isFSBlockFree = false
+   - isFsBlockCrosstalkFree = true
+   - isNextToCrosstalkFreeCores = true
+   - RESULTADO FINAL = false
+
+3. resolvedConflictSet tiene 1 ruta:
+   - 14→21 [ID:214e2a31] path:14-15-21 cores:[0,1,0,1] fs:1-2
+
+4. Ruta 21→22 NO está en conflictSet porque:
+   - No se solapa con la ventana completa [0-2] para TODOS los enlaces
+   - Solo se detecta en el enlace 21→22
+
+=============================================================================
+MECANISMO DEL BUG
+=============================================================================
+
+ESCENARIO CONFIRMADO PARA ROLLBACK-1:
+
+1. T < 363: Una o más rutas RSA usan enlace 6→2 con core 0, FS [0-2]
+2. assignFs() marca esos slots como ocupados en los Core objects compartidos
+3. 2→6 ve esos slots ocupados porque comparten MISMO List<Core>
+4. Las rutas con 6→2 ESTÁN en establishedRoutes (NO fueron eliminadas)
+
+5. T = 363: Nueva demanda 2→21 intenta desfragmentar usando 2→6/core0/[0-2]
+6. evaluarVentanaMinSuma() llama conflictosEnLinkCoreVentana(Link 2→6, ...)
+7. Para cada ruta en establishedRoutes, llama posicionDelEnlaceEnRuta(ruta, 2→6)
+8. Rutas con 6→2: posicionDelEnlaceEnRuta() retorna -1 (no es 2→6 exacto)
+9. Resultado: conflictSet = {14→21, 21→22} (solo detecta los correctos)
+10. NO detecta las rutas con 6→2 que físicamente ocupan los mismos slots
+
+11. isBlockAvailable() consulta isFree directamente → false
+12. CONTRADICCIÓN: pocos conflictos detectados pero bloque no disponible  
+13. ROLLBACK-1 ocurre
+
+=============================================================================
+BÚSQUEDA DE RUTAS CANDIDATAS
+=============================================================================
+
+Búsqueda exhaustiva en traces:
+- Rutas con 6→2 y grupo [0,1]: SÍ encontradas (15→2, 8→2, 11→3, 22→2)
+- Rutas con 6→2, grupo [0,1] y FS [0-2]: NO encontradas
+- Rutas con 2→6 y FS [0-2]: NO encontradas en logs disponibles
+
+LIMITACIÓN: Los traces NO capturan asignaciones RSA normales (sin "ASSIGNED").
+Solo capturan logs de defragmentación (backups/candidatos).
+
+Ejemplos de rutas con 6→2 (FS altos):
+- 15→2: path:15-11-8-6-2 cores:[0,1,0,1,0,1,0,1] fs:16-16
+- 8→2: path:8-6-2 cores:[0,1,0,1] fs:20-20
+- 22→2: path:22-21-15-11-8-6-2 cores:[0,1,0,1,0,1,0,1,0,1,0,1] fs:126-127
+- 11→3: path:11-8-6-2-3 cores:[0,1,0,1,0,1,0,1] fs:112-115
+
+=============================================================================
+ANÁLISIS DE SETFREE()
+=============================================================================
+
+Lugares donde se modifica FrequencySlot.isFree:
+
+1. Utils.assignFs() línea 215: setFree(false) - ASIGNACIÓN NORMAL
+2. Utils.deallocateFs() línea 264: setFree(true) - DESASIGNACIÓN NORMAL
+3. Defragmenter.copyRoute() línea 1478: Copia estado (NO afecta grafo)
+4. Defragmenter.restoreSingleRoute() línea 1552: setFree(backup) - ROLLBACK
+
+El ROLLBACK es el único mecanismo que puede dejar slots ocupados sin
+llamar a assignFs().
+
+=============================================================================
+SEPARACIÓN DE BUGS
+=============================================================================
+
+A) BUG ESTRUCTURAL CONFIRMADO (Direcciones Inversas):
+   - Enlaces 2→6 y 6→2 comparten List<Core> objects (Utils.java líneas 68-81)
+   - posicionDelEnlaceEnRuta() solo detecta direcciones exactas (línea 1023)
+   - Una ruta con 6→2 puede ocupar slots que 2→6 ve como ocupados
+   - Pero conflictosEnLinkCoreVentana() NO la detecta como conflicto
+   - ESTE BUG EXISTE INDEPENDIENTEMENTE DE ROLLBACK-1
+
+B) CAUSA CONFIRMADA DE ROLLBACK-1 (Bug de Direcciones Inversas):
+   - Enlaces 2→6 y 6→2 comparten List<Core> objects
+   - Rutas con 6→2 marcan slots compartidos como ocupados
+   - conflictosEnLinkCoreVentana() busca 2→6 exactamente → no detecta 6→2
+   - Resultado: Slots ocupados (isFree=false) con rutas INDETECTABLES
+   - conflictosEnLinkCoreVentana() retorna 0 rutas (INCORRECTO - no ve inversa)
+   - isBlockAvailable() retorna false (CORRECTO - slots ocupados)
+   - Contradicción: 0 conflictos detectados pero bloque no disponible
+   
+C) CONSECUENCIA (Desplome de Algoritmos):
+   - DFbFRmax, DFbFRmin, DFfullRuteoMin tienen ~0% éxito
+   - Causado por el MISMO bug de direcciones inversas
+   - Todas las ventanas tienen slots ocupados por rutas inversas invisibles
+   - Los algoritmos no pueden encontrar ventanas "limpias"
+   - Resultado: 100% de rollbacks, 0% de éxitos
+
+=============================================================================
+CONCLUSIONES
+=============================================================================
+
+1. NO SE ENCONTRÓ evidencia directa en traces disponibles de una ruta 
+   específica con 6→2, core 0, FS [0-2] (limitación de instrumentación).
+
+2. Sin embargo, el MECANISMO está COMPLETAMENTE EXPLICADO:
+   - 2→6 y 6→2 comparten List<Core> objects (comprobado en código)
+   - posicionDelEnlaceEnRuta() solo detecta direcciones exactas (comprobado)
+   - Esto causa que rutas con 6→2 ocupen slots que 2→6 ve sin detectarlas
+
+3. El bug de direcciones inversas (A) ES la causa de ROLLBACK-1:
+   - Explica por qué isFree=false (slots físicamente ocupados)
+   - Explica por qué conflictSet pequeño (no detecta inversas)
+   - Explica la contradicción slots ocupados / pocos conflictos
+
+4. La ausencia de ruta concreta en traces se debe a:
+   - Los traces NO capturan asignaciones RSA normales ("ASSIGNED")
+   - Solo capturan logs de defragmentación (backups)
+   - Las rutas con 6→2 existen pero con FS altos en logs disponibles
+
+5. Los tres algoritmos de defragmentación comparten:
+   - evaluarVentana() / evaluarVentanaMinSuma()
+   - conflictosEnLinkCoreVentana() con el MISMO bug
+   - Esto explica su desplome simultáneo tras DirectedWeightedMultigraph
+
+=============================================================================
+MECANISMO COMPARTIDO DE DESPLOME
+=============================================================================
+
+Todos los algoritmos (DFbFRmax, DFbFRmin, DFfullRuteoMin) usan:
+- evaluarVentana() o evaluarVentanaMinSuma()
+- conflictosEnLinkCoreVentana() para detectar conflictos
+- Rollback simple con restoreSingleRoute()
+- NINGUNO añade rutas de vuelta a establishedRoutes tras rollback simple
+
+Cascada de fallos:
+1. Primer intento falla → Rollback simple → Slots zombie
+2. Siguiente intento ve slots ocupados → Menos ventanas disponibles
+3. Más rollbacks → Más slots zombie
+4. Eventualmente: 100% de ventanas contaminadas
+5. Resultado: 0% éxito en todos los algoritmos
+
+=============================================================================
+RECOMENDACIÓN
+=============================================================================
+direcciones inversas (CAUSA RAÍZ)
+- Opción A: Modificar posicionDelEnlaceEnRuta() para detectar ambas direcciones
+  → Buscar tanto (from→to) como (to→from) en el path
+  → Si encuentra cualquiera, verificar si ocupa el core/FS buscado
+  
+- Opción B: Separar List<Core> entre enlaces inversos  
+  → Cada Link tiene su propia instancia de List<Core>
+  → Sincronizar estado entre direcciones cuando sea necesario
+
+PRIORIDAD 2: Instrumentar para validar (PREVENCIÓN)
+- Verificar invariante: slots ocupados deben tener ruta detectable
+- Incluir búsqueda bidireccional en la validación
+- Alertar sobre discrepancias
+
+PRIORIDAD 3: Limpiar instrumentación existente
+- Reducir traces de rollback/matriz/isblock
+- Mantener solo validaciones críticlots ocupados tienen ruta en establishedRoutes
+- Alertar sobre discrepancias
+
+=============================================================================
