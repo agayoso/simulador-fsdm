@@ -44,13 +44,13 @@ public class Defragmenter {
     private static final int TRACE_LINK_FROM = 8;
     private static final int TRACE_LINK_TO = 11;
     private static final int TRACE_CORE = 2;
-    private static final boolean TRACE_REINSERTION_FLOW = true;  // Rastrear flujo de reinserción
+    private static final boolean TRACE_REINSERTION_FLOW = false;  // Rastrear flujo de reinserción
     private static int reinsertionTraceCounter = 0;  // Limitar a primer caso
-    private static boolean TRACE_INTENTO_ASSIGN = true;  // Trace detallado de intentarAsignarConCoresFijos
+    private static boolean TRACE_INTENTO_ASSIGN = false;  // Trace detallado de intentarAsignarConCoresFijos
     private static final int TRACE_FS = 211;
     private static int traceEventCounter = 0;
     
-    private static final boolean TRACE_ROLLBACK_VALIDATION = true;
+    private static final boolean TRACE_ROLLBACK_VALIDATION = false;
     private static int rollbackCounter = 0;
     
     private static void traceSlot(String operation, Link link, int core, int fs, 
@@ -257,14 +257,16 @@ public class Defragmenter {
                 return true;
 
             } finally {
-                if (DEBUG) {
-                    if (profundidad == 1) {
-                        printMetricsBFRmax1();
-                    } else {
-
-                    }
-                    printMetricsBFRmax3();
-                }
+                // Métricas desactivadas para limpieza de output experimental
+                // Las métricas acumuladas se reportan al final del experimento
+                // if (DEBUG) {
+                //     if (profundidad == 1) {
+                //         printMetricsBFRmax1();
+                //     } else {
+                //
+                //     }
+                //     printMetricsBFRmax3();
+                // }
             }
         }
 
@@ -454,13 +456,15 @@ public class Defragmenter {
                 return true;
 
             } finally {
-                if (DEBUG) {
-                    if (profundidad == 1) {
-                        printMetricsBFRmin1();
-                    } else {
-                        printMetricsBFRmin3();
-                    }
-                }
+                // Métricas desactivadas para limpieza de output experimental
+                // Las métricas acumuladas se reportan al final del experimento
+                // if (DEBUG) {
+                //     if (profundidad == 1) {
+                //         printMetricsBFRmin1();
+                //     } else {
+                //         printMetricsBFRmin3();
+                //     }
+                // }
             }
         }
 
@@ -926,13 +930,15 @@ List<VentanaMinSum> candidatos = new ArrayList<>();
                 return true;
 
             } finally {
-                if (DEBUG) {
-                    if (profundidad == 1) {
-                        printMetricsFullRuteoMin1();
-                    } else {
-                        printMetricsFullRuteoMin3();
-                    }
-                }
+                // Métricas desactivadas para limpieza de output experimental
+                // Las métricas acumuladas se reportan al final del experimento
+                // if (DEBUG) {
+                //     if (profundidad == 1) {
+                //         printMetricsFullRuteoMin1();
+                //     } else {
+                //         printMetricsFullRuteoMin3();
+                //     }
+                // }
             }
         }
 

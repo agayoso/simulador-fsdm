@@ -1,8 +1,0 @@
-﻿[DIAGNËSTICO-isBlockAvailable] ===== DESGLOSE DE CONDICIONES =====
-[DIAGNËSTICO-isBlockAvailable]   Link: 2->6
-[DIAGNËSTICO-isBlockAvailable]   Core: 0
-[DIAGNËSTICO-isBlockAvailable]   FS range: [138-141]
-[DIAGNËSTICO-isBlockAvailable]   isFSBlockFree = false
-[DIAGNËSTICO-isBlockAvailable]   isFsBlockCrosstalkFree = true
-[DIAGNËSTICO-isBlockAvailable]   isNextToCrosstalkFreeCores = true
-[DIAGNËSTICO-isBlockAvailable]   RESULTADO FINAL = false

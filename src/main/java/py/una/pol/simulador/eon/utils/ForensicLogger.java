@@ -17,7 +17,7 @@ import java.util.*;
  */
 public class ForensicLogger {
     
-    private static final boolean ENABLE_FORENSICS = true;
+    private static final boolean ENABLE_FORENSICS = false;  // Desactivado para corridas experimentales normales
     private static PrintWriter writer;
     private static int violationCount = 0;
     

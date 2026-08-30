@@ -39,7 +39,7 @@ public class Utils {
      * Flag para habilitar detección de sobrescritura de recursos en assignFs().
      * Cuando está habilitado, imprime diagnósticos si assignFs() intenta asignar sobre un slot ya ocupado.
      */
-    private static final boolean ENABLE_ASSIGNFS_OVERWRITE_DETECTION = true;
+    private static final boolean ENABLE_ASSIGNFS_OVERWRITE_DETECTION = false;  // Desactivado para corridas experimentales normales
 
     /**
      * Creates the graph that represents the optical network

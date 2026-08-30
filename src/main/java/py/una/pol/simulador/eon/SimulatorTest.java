@@ -41,10 +41,14 @@ import py.una.pol.simulador.eon.utils.ForensicLogger;
 
 public class SimulatorTest {
     
+    /* Herramientas para analisis y debug del simulador */
     // ========== FORENSIC AUDIT CONFIGURATION ==========
-    private static final boolean ENABLE_PERIODIC_VALIDATION = true;
+    private static final boolean ENABLE_PERIODIC_VALIDATION = false;
     private static final int VALIDATION_INTERVAL = 100; // Validar cada 100 ticks
-    // ==================================================
+    
+    // ========== HEURISTICS EXECUTION CONTROL ==========
+    private static final boolean RUN_DFFULLRUTEOMIN = false;
+    /* ================================================= */
 
     /**
      * Configuración inicial para el simulador
@@ -55,7 +59,7 @@ public class SimulatorTest {
     private Input getTestingInput(Integer erlang) {
         Input input = new Input();
 
-        input.setDemands(5000);
+        input.setDemands(10000);
         input.setTopologies(new ArrayList<>());
         //input.getTopologies().add(TopologiesEnum.NSFNET);
         input.getTopologies().add(TopologiesEnum.USNET);
@@ -65,14 +69,15 @@ public class SimulatorTest {
         input.setFsRangeMin(2);
         input.setCapacity(320);
 
-        // ========== CONFIGURACIÓN AGRUPAMIENTO FSDM (ÚNICO PUNTO DE CONFIGURACIÓN) ==========
+        // ======= CONFIGURACIÓN AGRUPAMIENTO FSDM (ÚNICO PUNTO DE CONFIGURACIÓN) =======
         input.setCores(4);              // Cantidad total de fibras
-        input.setFibrasPorGrupo(2);     // Fibras por grupo
+        input.setFibrasPorGrupo(1);     // Fibras por grupo
         input.calcularGrupos();         // Calcula automáticamente los grupos: [[0,1], [2,3], [4,5]]
-        // ====================================================================================
+        
+        // ========== CONFIGURACIÓN ERLANG ==========
+        input.setErlang(1000);
 
         input.setLambda(5);
-        input.setErlang(erlang);
         input.setAlgorithms(new ArrayList<>());
         //input.getAlgorithms().add(RSAEnum.CORE_UNICO);
         input.getAlgorithms().add(RSAEnum.MULTIPLES_CORES);
@@ -98,7 +103,10 @@ public class SimulatorTest {
         try {
             createTable();
             // Datos de entrada
-            for (int erlang = 2500; erlang <= 2500; erlang = erlang + 1000) {
+            Input inputConfig = new SimulatorTest().getTestingInput(0);
+            int erlangExperimento = inputConfig.getErlang();
+            
+            for (int erlang = erlangExperimento; erlang <= erlangExperimento; erlang = erlang + 1000) {
 
                 //Contadores de tiempo de ejecución de cada estrategia
                 long tiempoTotalDFbFRmax1 = 0L;
@@ -110,8 +118,6 @@ public class SimulatorTest {
                 long tiempoTotalDFfullRuteoMin1 = 0L;
                 long tiempoTotalDFfullRuteoMin3 = 0L;
 
-
-
                 int bloqueos_sd = 0;
                 int bloqueoBFRmax1 = 0;
                 int bloqueoBFRmax3=0;
@@ -121,7 +127,6 @@ public class SimulatorTest {
 
                 int bloqueoFullRuteoMin1=0;
                   int bloqueoFullRuteoMin3=0;
-
 
                 int demandaNro_sd = 1;
                 int demandaNro_cdBFR1 = 1;
@@ -156,9 +161,8 @@ public class SimulatorTest {
                         listaDemandas.add(demands);
                     }
 
-                    ////////////////////////////////////////////////////////////////////////////////
                 /* ===========================================================
-                    Simulador sin desfragmenta
+                    Simulador sin desfragmentacion
                  =========================================================== */
                     for (Double crosstalkPerUnitLength : input.getCrosstalkPerUnitLenghtList()) {
                         for (RSAEnum algorithm : input.getAlgorithms()) {
@@ -167,7 +171,7 @@ public class SimulatorTest {
                             // Lista de rutas establecidas durante la simulación
                             List<EstablishedRoute> establishedRoutes = new ArrayList<>();
                             System.out.println("Inicializando simulación del RSA " + algorithm.label() + " para erlang: " + (erlang) + " para la topología " + topology.label() + " y H = " + crosstalkPerUnitLength.toString());
-                            System.out.println("[FORENSIC AUDIT] Validación periódica habilitada cada " + VALIDATION_INTERVAL + " ticks");
+                            // System.out.println("[FORENSIC AUDIT] Validación periódica habilitada cada " + VALIDATION_INTERVAL + " ticks");  // Desactivado para limpieza de output
                             
                             int validationFailures = 0;
                             
@@ -182,7 +186,7 @@ public class SimulatorTest {
                                     EstablishedRoute establishedRoute=null;
                                     switch (algorithm) {
                                         case CORE_UNICO -> {
-                    //                        establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
+                                          //  establishedRoute = Algorithms.ruteoCoreUnico(graph, demand, input.getCapacity(), input.getCores(), input.getMaxCrosstalk(), crosstalkPerUnitLength);
                                         }
                                         case MULTIPLES_CORES -> {
                                             establishedRoute = Algorithms.ruteoCoreMultiple(graph, demand, input, crosstalkPerUnitLength);
@@ -199,7 +203,7 @@ public class SimulatorTest {
                                         bloqueos_sd++;
 
                                     } else {
-                                        //Ruta establecida
+                                        // Ruta establecida
                                         AssignFsResponse response = Utils.assignFs(graph, establishedRoute, crosstalkPerUnitLength);
                                         establishedRoute = response.getRoute();
                                         graph = response.getGraph();
@@ -257,8 +261,7 @@ public class SimulatorTest {
                             System.out.println(System.lineSeparator());
                         }
                     }
-                    //////////////////////////////////////////////////
-                    /////////////////////////////////////////////////
+
                  /* ===========================================================
                     Simulador con desfragmentacion, BFR MAXIMO y re-ruteo minimo profundidad 1 con las mismas demandas
                  =========================================================== */
@@ -293,7 +296,7 @@ public class SimulatorTest {
                                     if (establishedRoute == null || establishedRoute.getFsIndexBegin() == -1) {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
-                                        System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 1: ");
+                                        // System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 1: "); // Desactivado para limpieza de output
 
                                          desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
 
@@ -333,8 +336,7 @@ public class SimulatorTest {
                         }
                     }
                     tiempoTotalDFbFRmax1 += System.nanoTime() - inicioDFbFRmax1;
-                                                           //////////////////////////////////////////////////
-                    /////////////////////////////////////////////////
+
                  /* ===========================================================
                     Simulador con desfragmentacion, BFR MAXIMO y re-ruteo minimo profundidad 3 con las mismas demandas
                  =========================================================== */
@@ -369,7 +371,7 @@ public class SimulatorTest {
                                     if (establishedRoute == null || establishedRoute.getFsIndexBegin() == -1) {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
-                                        System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 3: ");
+                                        // System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmax PROFUNDIDAD 3: "); // Desactivado para limpieza de output
 
                                          desfragExitoso = Defragmenter.DFbFRmax(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),3);
 
@@ -409,8 +411,7 @@ public class SimulatorTest {
                         }
                     }
                     tiempoTotalDFbFRmax3 += System.nanoTime() - inicioDFbFRmax3;
-                                                           //////////////////////////////////////////////////
-                    /////////////////////////////////////////////////
+
                  /* ===========================================================
                     Simulador con desfragmentacion, BFR MINIMO y re-ruteo minimo profundidad 1 con las mismas demandas
                  =========================================================== */
@@ -445,9 +446,9 @@ public class SimulatorTest {
                                     if (establishedRoute == null || establishedRoute.getFsIndexBegin() == -1) {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
-                                        System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 1: ");
+                                        // System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 1: "); // Desactivado para limpieza de output
 
-                                        desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
+                                         desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
 
                                         if (!desfragExitoso) {
                                             // Si no se pudo resolver el bloqueo, registrar el bloqueo
@@ -485,7 +486,7 @@ public class SimulatorTest {
                         }
                     }
                     tiempoTotalDFbFRmin1 += System.nanoTime() - inicioDFbFRmin1;
-                                        /////////////////////////////////////////////////
+
                  /* ===========================================================
                     Simulador con desfragmentacion, BFR MINIMO y re-ruteo minimo profundidad 3 con las mismas demandas
                  =========================================================== */
@@ -520,7 +521,7 @@ public class SimulatorTest {
                                     if (establishedRoute == null || establishedRoute.getFsIndexBegin() == -1) {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
-                                        System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 3: ");
+                                        // System.out.println("COMIENZA A DESFRAGMENTAR CON DFbFRmin PROFUNDIDAD 3: "); // Desactivado para limpieza de output
 
                                          desfragExitoso = Defragmenter.DFbFRmin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),3);
 
@@ -561,12 +562,10 @@ public class SimulatorTest {
                     }
                     tiempoTotalDFbFRmin3 += System.nanoTime() - inicioDFbFRmin3;
 
-                        //////////////////////////////////////////////////
-                    /////////////////////////////////////////////////
+
                  /* ===========================================================
                     Simulador con desfragmentacion, full re-ruteo minimo profundidad 1 con las mismas demandas
-                 =========================================================== */
-                    long inicioDFfullRuteoMin1 = System.nanoTime();
+                 =========================================================== */                    if (RUN_DFFULLRUTEOMIN) {                    long inicioDFfullRuteoMin1 = System.nanoTime();
                     for (Double crosstalkPerUnitLength : input.getCrosstalkPerUnitLenghtList()) {
                         for (RSAEnum algorithm : input.getAlgorithms()) {
                             graph = Utils.createTopology(topology,
@@ -597,7 +596,7 @@ public class SimulatorTest {
                                     if (establishedRoute == null || establishedRoute.getFsIndexBegin() == -1) {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
-                                        System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 1: ");
+                                        // System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 1: "); // Desactivado para limpieza de output
 
                                          desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),1);
 
@@ -637,12 +636,12 @@ public class SimulatorTest {
                         }
                     }
                     tiempoTotalDFfullRuteoMin1 += System.nanoTime() - inicioDFfullRuteoMin1;
+                    }
 
-                        //////////////////////////////////////////////////
-                    /////////////////////////////////////////////////
                  /* ===========================================================
                     Simulador con desfragmentacion, full re-ruteo minimo profundidad 3 con las mismas demandas
                  =========================================================== */
+                    if (RUN_DFFULLRUTEOMIN) {
                     long inicioDFfullRuteoMin3 = System.nanoTime();
                     for (Double crosstalkPerUnitLength : input.getCrosstalkPerUnitLenghtList()) {
                         for (RSAEnum algorithm : input.getAlgorithms()) {
@@ -674,7 +673,7 @@ public class SimulatorTest {
                                     if (establishedRoute == null || establishedRoute.getFsIndexBegin() == -1) {
                                         boolean desfragExitoso;
                                         // Si la demanda está bloqueada, intentar desfragmentar el enlace para resolver el conflicto
-                                        System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 3: ");
+                                        // System.out.println("COMIENZA A DESFRAGMENTAR CON DFfullRuteoMin PROFUNDIDAD 3: "); // Desactivado para limpieza de output
 
                                          desfragExitoso = Defragmenter.DFfullRuteoMin(demand, graph, establishedRoutes, input, input.getCrosstalkPerUnitLenghtList().get(0),3);
 
@@ -714,6 +713,7 @@ public class SimulatorTest {
                         }
                     }
                       tiempoTotalDFfullRuteoMin3 += System.nanoTime() - inicioDFfullRuteoMin3;
+                    }
 
                     // Imprimir resumen formateado del experimento
                     imprimirResumenExperimento(
@@ -735,14 +735,14 @@ public class SimulatorTest {
             
             // ========== FORENSIC AUDIT: Finalizar y generar reporte ==========
             ForensicLogger.finish();
-            // ================================================================
+            // =============================
 
         } catch (IOException | IllegalArgumentException ex) {
             System.out.println(ex.getMessage());
             
             // ========== FORENSIC AUDIT: Finalizar incluso en caso de error ==========
             ForensicLogger.finish();
-            // ========================================================================
+            // ==============================
         }
 
     }
@@ -814,6 +814,7 @@ public class SimulatorTest {
             bloqueoBFRmin3, (bloqueoBFRmin3 * 100.0 / totalDemandas));
         System.out.println();
 
+        if (RUN_DFFULLRUTEOMIN) {
         System.out.println("DFfullRuteoMin P1");
         System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
             bloqueoFullRuteoMin1, (bloqueoFullRuteoMin1 * 100.0 / totalDemandas));
@@ -822,6 +823,7 @@ public class SimulatorTest {
         System.out.println("DFfullRuteoMin P3");
         System.out.printf("  Bloqueos           : %d (%.3f%%)%n",
             bloqueoFullRuteoMin3, (bloqueoFullRuteoMin3 * 100.0 / totalDemandas));
+        }
 
         // DESEMPEÑO DE LAS HEURÍSTICAS
         System.out.println("\nDESEMPEÑO DE LAS HEURÍSTICAS");
@@ -832,8 +834,10 @@ public class SimulatorTest {
         imprimirMetricasHeuristica("DFbFRmax P3", Defragmenter.metricsBFRmax3);
         imprimirMetricasHeuristica("DFbFRmin P1", Defragmenter.metricsBFRmin1);
         imprimirMetricasHeuristica("DFbFRmin P3", Defragmenter.metricsBFRmin3);
+        if (RUN_DFFULLRUTEOMIN) {
         imprimirMetricasHeuristica("DFfullRuteoMin P1", Defragmenter.metricsFullRuteoMin1);
         imprimirMetricasHeuristica("DFfullRuteoMin P3", Defragmenter.metricsFullRuteoMin3);
+        }
         // TIEMPOS
         System.out.println("\nTIEMPOS");
         System.out.println("------------------------------------------------------------");
@@ -841,13 +845,15 @@ public class SimulatorTest {
         System.out.printf("%-22s : %s%n", "DFbFRmax P3", formatDuration(tiempoBFRmax3));
         System.out.printf("%-22s : %s%n", "DFbFRmin P1", formatDuration(tiempoBFRmin1));
         System.out.printf("%-22s : %s%n", "DFbFRmin P3", formatDuration(tiempoBFRmin3));
+        if (RUN_DFFULLRUTEOMIN) {
         System.out.printf("%-22s : %s%n", "DFfullRuteoMin P1", formatDuration(tiempoFullRuteoMin1));
         System.out.printf("%-22s : %s%n", "DFfullRuteoMin P3", formatDuration(tiempoFullRuteoMin3));
+        }
 
         System.out.println("\n============================================================\n\n");
 
         // Imprimir reporte de validación de invariantes
-        Defragmenter.printValidationReport();
+        // Defragmenter.printValidationReport();  // Desactivado para limpieza de output experimental
 
         // Exportar resultados a CSV
         CsvExporter.exportarResultado(

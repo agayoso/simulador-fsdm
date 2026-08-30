@@ -101,67 +101,32 @@ public class CsvExporter {
             header.append("Bloqueos_BFRmax_P3").append(CSV_SEPARATOR);
             header.append("Bloqueos_BFRmin_P1").append(CSV_SEPARATOR);
             header.append("Bloqueos_BFRmin_P3").append(CSV_SEPARATOR);
-            header.append("Bloqueos_FullRuteoMin_P1").append(CSV_SEPARATOR);
-            header.append("Bloqueos_FullRuteoMin_P3").append(CSV_SEPARATOR);
-            
-            // Porcentajes de bloqueo
-            header.append("PorcentajeBloqueo_SinDF").append(CSV_SEPARATOR);
-            header.append("PorcentajeBloqueo_BFRmax_P1").append(CSV_SEPARATOR);
-            header.append("PorcentajeBloqueo_BFRmax_P3").append(CSV_SEPARATOR);
-            header.append("PorcentajeBloqueo_BFRmin_P1").append(CSV_SEPARATOR);
-            header.append("PorcentajeBloqueo_BFRmin_P3").append(CSV_SEPARATOR);
-            header.append("PorcentajeBloqueo_FullRuteoMin_P1").append(CSV_SEPARATOR);
-            header.append("PorcentajeBloqueo_FullRuteoMin_P3").append(CSV_SEPARATOR);
             
             // Métricas DFbFRmax P1
             header.append("BFRmax_P1_Exitos").append(CSV_SEPARATOR);
             header.append("BFRmax_P1_Fallos").append(CSV_SEPARATOR);
-            header.append("BFRmax_P1_SuccessRate").append(CSV_SEPARATOR);
             header.append("BFRmax_P1_RutasReconfig").append(CSV_SEPARATOR);
-            header.append("BFRmax_P1_PromedioRutasPorExito").append(CSV_SEPARATOR);
             
             // Métricas DFbFRmax P3
             header.append("BFRmax_P3_Exitos").append(CSV_SEPARATOR);
             header.append("BFRmax_P3_Fallos").append(CSV_SEPARATOR);
-            header.append("BFRmax_P3_SuccessRate").append(CSV_SEPARATOR);
             header.append("BFRmax_P3_RutasReconfig").append(CSV_SEPARATOR);
-            header.append("BFRmax_P3_PromedioRutasPorExito").append(CSV_SEPARATOR);
             
             // Métricas DFbFRmin P1
             header.append("BFRmin_P1_Exitos").append(CSV_SEPARATOR);
             header.append("BFRmin_P1_Fallos").append(CSV_SEPARATOR);
-            header.append("BFRmin_P1_SuccessRate").append(CSV_SEPARATOR);
             header.append("BFRmin_P1_RutasReconfig").append(CSV_SEPARATOR);
-            header.append("BFRmin_P1_PromedioRutasPorExito").append(CSV_SEPARATOR);
             
             // Métricas DFbFRmin P3
             header.append("BFRmin_P3_Exitos").append(CSV_SEPARATOR);
             header.append("BFRmin_P3_Fallos").append(CSV_SEPARATOR);
-            header.append("BFRmin_P3_SuccessRate").append(CSV_SEPARATOR);
             header.append("BFRmin_P3_RutasReconfig").append(CSV_SEPARATOR);
-            header.append("BFRmin_P3_PromedioRutasPorExito").append(CSV_SEPARATOR);
-            
-            // Métricas DFfullRuteoMin P1
-            header.append("FullRuteoMin_P1_Exitos").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P1_Fallos").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P1_SuccessRate").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P1_RutasReconfig").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P1_PromedioRutasPorExito").append(CSV_SEPARATOR);
-            
-            // Métricas DFfullRuteoMin P3
-            header.append("FullRuteoMin_P3_Exitos").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P3_Fallos").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P3_SuccessRate").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P3_RutasReconfig").append(CSV_SEPARATOR);
-            header.append("FullRuteoMin_P3_PromedioRutasPorExito").append(CSV_SEPARATOR);
             
             // Tiempos de ejecución (en milisegundos)
             header.append("Tiempo_BFRmax_P1_ms").append(CSV_SEPARATOR);
             header.append("Tiempo_BFRmax_P3_ms").append(CSV_SEPARATOR);
             header.append("Tiempo_BFRmin_P1_ms").append(CSV_SEPARATOR);
-            header.append("Tiempo_BFRmin_P3_ms").append(CSV_SEPARATOR);
-            header.append("Tiempo_FullRuteoMin_P1_ms").append(CSV_SEPARATOR);
-            header.append("Tiempo_FullRuteoMin_P3_ms");
+            header.append("Tiempo_BFRmin_P3_ms");
             
             writer.write(header.toString());
             writer.newLine();
@@ -201,33 +166,18 @@ public class CsvExporter {
             row.append(bloqueoBFRmax3).append(CSV_SEPARATOR);
             row.append(bloqueoBFRmin1).append(CSV_SEPARATOR);
             row.append(bloqueoBFRmin3).append(CSV_SEPARATOR);
-            row.append(bloqueoFullRuteoMin1).append(CSV_SEPARATOR);
-            row.append(bloqueoFullRuteoMin3).append(CSV_SEPARATOR);
-            
-            // Porcentajes de bloqueo
-            row.append(formatPercentage(bloqueosSinDF, totalDemandas)).append(CSV_SEPARATOR);
-            row.append(formatPercentage(bloqueoBFRmax1, totalDemandas)).append(CSV_SEPARATOR);
-            row.append(formatPercentage(bloqueoBFRmax3, totalDemandas)).append(CSV_SEPARATOR);
-            row.append(formatPercentage(bloqueoBFRmin1, totalDemandas)).append(CSV_SEPARATOR);
-            row.append(formatPercentage(bloqueoBFRmin3, totalDemandas)).append(CSV_SEPARATOR);
-            row.append(formatPercentage(bloqueoFullRuteoMin1, totalDemandas)).append(CSV_SEPARATOR);
-            row.append(formatPercentage(bloqueoFullRuteoMin3, totalDemandas)).append(CSV_SEPARATOR);
             
             // Métricas de cada heurística (reutilizando datos ya calculados en Defragmenter)
             agregarMetricasHeuristica(row, Defragmenter.metricsBFRmax1);
             agregarMetricasHeuristica(row, Defragmenter.metricsBFRmax3);
             agregarMetricasHeuristica(row, Defragmenter.metricsBFRmin1);
             agregarMetricasHeuristica(row, Defragmenter.metricsBFRmin3);
-            agregarMetricasHeuristica(row, Defragmenter.metricsFullRuteoMin1);
-            agregarMetricasHeuristica(row, Defragmenter.metricsFullRuteoMin3);
             
             // Tiempos de ejecución (convertir de nanosegundos a milisegundos)
             row.append(nanosToMillis(tiempoBFRmax1)).append(CSV_SEPARATOR);
             row.append(nanosToMillis(tiempoBFRmax3)).append(CSV_SEPARATOR);
             row.append(nanosToMillis(tiempoBFRmin1)).append(CSV_SEPARATOR);
-            row.append(nanosToMillis(tiempoBFRmin3)).append(CSV_SEPARATOR);
-            row.append(nanosToMillis(tiempoFullRuteoMin1)).append(CSV_SEPARATOR);
-            row.append(nanosToMillis(tiempoFullRuteoMin3));
+            row.append(nanosToMillis(tiempoBFRmin3));
             
             writer.write(row.toString());
             writer.newLine();
@@ -238,26 +188,9 @@ public class CsvExporter {
      * Agrega las métricas de una heurística a la fila CSV
      */
     private static void agregarMetricasHeuristica(StringBuilder row, Defragmenter.DefragMetrics metrics) {
-        int totalIntentos = metrics.conteoExitos + metrics.conteoFallido;
-        double successRate = totalIntentos > 0
-            ? (metrics.conteoExitos * 100.0 / totalIntentos)
-            : 0.0;
-        double promedioRutasPorExito = metrics.conteoExitos > 0
-            ? ((double) metrics.routesMoved / metrics.conteoExitos)
-            : 0.0;
-        
         row.append(metrics.conteoExitos).append(CSV_SEPARATOR);
         row.append(metrics.conteoFallido).append(CSV_SEPARATOR);
-        row.append(formatDouble(successRate)).append(CSV_SEPARATOR);
         row.append(metrics.routesMoved).append(CSV_SEPARATOR);
-        row.append(formatDouble(promedioRutasPorExito)).append(CSV_SEPARATOR);
-    }
-
-    /**
-     * Formatea un porcentaje con 3 decimales
-     */
-    private static String formatPercentage(int bloqueos, int total) {
-        return formatDouble(bloqueos * 100.0 / total);
     }
 
     /**
